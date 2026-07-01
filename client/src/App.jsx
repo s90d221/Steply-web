@@ -34,10 +34,15 @@ function shouldShowExercisePanel(dashboard) {
   const state = dashboard.poseAnalysis?.analysisState || {};
   const durationSeconds = state.durationSeconds || dashboard.poseAnalysis?.durationSeconds || 30;
   const timedOut = durationSeconds > 0 && (state.elapsedSeconds || 0) >= durationSeconds;
+
   return dashboard.activeStep === 'exercise'
     || dashboard.poseAnalysis?.workerStatus === 'finished'
     || Boolean(dashboard.poseAnalysis?.analysisResult)
     || timedOut;
+}
+
+function shouldShowAnalysisPanel(dashboard) {
+  return dashboard.activeStep === 'analysis' || Boolean(dashboard.remoteCameraFrame?.src);
 }
 
 function renderPanel(dashboard) {
@@ -64,7 +69,7 @@ function renderPanel(dashboard) {
     );
   }
 
-  if (dashboard.activeStep === 'analysis' || dashboard.remoteCameraFrame?.src) {
+  if (shouldShowAnalysisPanel(dashboard)) {
     return (
       <AnalysisPanel
         selectedTest={dashboard.selectedTest}
@@ -87,34 +92,40 @@ function renderPanel(dashboard) {
 export default function App() {
   const dashboard = useSteplyDashboard();
 
+  const isFocusMode = shouldShowAnalysisPanel(dashboard);
+
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [dashboard.activeStep]);
 
   return (
-    <div className="steply-shell">
-      <SessionRail
-        sessionBundle={dashboard.sessionBundle}
-        networkInfo={dashboard.networkInfo}
-        onCreateSession={dashboard.handleCreateSession}
-        onCopyPayload={dashboard.handleCopyPayload}
-        onRefreshSession={dashboard.handleRefreshSession}
-        busy={dashboard.busy}
-        error={dashboard.error || dashboard.poseAnalysis?.error}
-      />
+    <div className={isFocusMode ? 'steply-shell steply-shell--focus' : 'steply-shell'}>
+      {!isFocusMode ? (
+        <SessionRail
+          sessionBundle={dashboard.sessionBundle}
+          networkInfo={dashboard.networkInfo}
+          onCreateSession={dashboard.handleCreateSession}
+          onCopyPayload={dashboard.handleCopyPayload}
+          onRefreshSession={dashboard.handleRefreshSession}
+          busy={dashboard.busy}
+          error={dashboard.error || dashboard.poseAnalysis?.error}
+        />
+      ) : null}
 
-      <main className="dashboard-main">
-        <header className="top-bar">
-          <div>
-            <div className="eyebrow">Soft Wellness Companion</div>
-            <h1>Steply PC Movement Coach</h1>
-            <p>The phone streams camera frames, and the PC runs MediaPipe keypoint extraction and pose analysis in the background.</p>
-          </div>
-          <div className="top-bar__status" aria-label="local dashboard status">
-            <span className="status-dot" />
-            PC Pose Worker
-          </div>
-        </header>
+      <main className={isFocusMode ? 'dashboard-main dashboard-main--focus' : 'dashboard-main'}>
+        {!isFocusMode ? (
+          <header className="top-bar">
+            <div>
+              <div className="eyebrow">Soft Wellness Companion</div>
+              <h1>Steply PC Movement Coach</h1>
+              <p>The phone streams camera frames, and the PC runs MediaPipe keypoint extraction and pose analysis in the background.</p>
+            </div>
+            <div className="top-bar__status" aria-label="local dashboard status">
+              <span className="status-dot" />
+              PC Pose Worker
+            </div>
+          </header>
+        ) : null}
 
         <div className="screen-stage" key={dashboard.activeStep}>
           {renderPanel(dashboard)}

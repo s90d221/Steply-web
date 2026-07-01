@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { MetricCard, SteplyButton, SteplyCard, StatusPill, TimerCircle } from './SteplyPrimitives';
 import { PoseOverlay } from './pose/PoseOverlay';
 import { recommendationLabel } from '../pose/recommendationRules';
@@ -52,9 +52,48 @@ export function AnalysisPanel({
   const score = remoteCameraFrame?.src ? Math.round((state.confidence || 0) * 100) : 0;
   const status = state.warningMessage ? 'practice_needed' : statusFromScore(score || 72);
   const durationSeconds = state.durationSeconds || poseAnalysis?.durationSeconds || result?.durationSeconds || 30;
-  const elapsedSeconds = roundMetric(state.elapsedSeconds, 0);
+
+  const analysisElapsedSeconds = Number.isFinite(Number(state.elapsedSeconds))
+    ? Math.floor(Number(state.elapsedSeconds))
+    : 0;
+
+  const [displayElapsedSeconds, setDisplayElapsedSeconds] = useState(0);
+  const timerStartedAtRef = useRef(null);
+
   const primaryValue = state.primaryValue ?? state.repetitionCount ?? 0;
   const primaryLabel = state.primaryLabel || 'Chair Stands';
+
+  useEffect(() => {
+    if (!poseAnalysis?.isRunning) {
+      timerStartedAtRef.current = null;
+      setDisplayElapsedSeconds(Math.min(durationSeconds, analysisElapsedSeconds));
+      return undefined;
+    }
+
+    if (!timerStartedAtRef.current) {
+      timerStartedAtRef.current = performance.now() - analysisElapsedSeconds * 1000;
+    }
+
+    const tick = () => {
+      const nextElapsedSeconds = Math.floor(
+        (performance.now() - timerStartedAtRef.current) / 1000
+      );
+
+      setDisplayElapsedSeconds(
+        Math.min(durationSeconds, Math.max(0, nextElapsedSeconds))
+      );
+    };
+
+    tick();
+
+    const intervalId = window.setInterval(tick, 250);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [poseAnalysis?.isRunning, durationSeconds, analysisElapsedSeconds]);
+
+  const elapsedSeconds = displayElapsedSeconds;
 
   const frameKb = remoteCameraFrame?.byteLength
     ? Math.round(remoteCameraFrame.byteLength / 1024)

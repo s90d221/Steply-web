@@ -1,5 +1,27 @@
 @media (max-width: 1260px) {
   .steply-shell { grid-template-columns: 1fr; }
+  .steply-shell--with-sidebar,
+  .steply-shell--sidebar-collapsed {
+    grid-template-columns: 1fr;
+  }
+  .profile-sidebar {
+    position: relative;
+    left: auto;
+    top: auto;
+    width: 100%;
+    max-height: none;
+  }
+  .profile-sidebar__toggle {
+    position: static;
+    width: 100%;
+    height: 44px;
+    border-radius: var(--radius-button);
+    font-size: 15px;
+  }
+  .profile-sidebar__toggle::after {
+    content: attr(title);
+    margin-left: 6px;
+  }
   .session-rail {
     position: relative;
     top: auto;
@@ -7,7 +29,10 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: stretch;
   }
+  .session-rail--modal { grid-template-columns: 1fr; }
   .brand-lockup, .local-network-note { grid-column: 1 / -1; }
+  .session-rail--modal .brand-lockup,
+  .session-rail--modal .local-network-note { grid-column: auto; }
   .analysis-layout { grid-template-columns: 1fr; }
   .analysis-side { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .timer-circle { max-width: 260px; justify-self: center; width: 100%; }

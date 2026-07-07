@@ -18,7 +18,7 @@ export function StartPanel({
             <div className="eyebrow">Home / Today</div>
             <h1>{profileName ? `Good to see you, ${profileName}.` : 'Good to see you today.'}</h1>
             <p>
-              Start today’s balance mission when your phone camera and this larger screen are ready.
+              Use your phone camera and follow the large guide on this screen.
             </p>
           </div>
           <div className="home-hero__actions">
@@ -26,8 +26,8 @@ export function StartPanel({
               Start Today’s Balance Mission
             </SteplyButton>
             <div className="home-secondary-actions" aria-label="Secondary actions">
-              <SteplyButton variant="secondary" onClick={onViewProgress}>View My Progress</SteplyButton>
-              <SteplyButton variant="secondary" onClick={onViewProgress}>Exercise History</SteplyButton>
+              <SteplyButton variant="secondary" onClick={onViewProgress}>My Progress</SteplyButton>
+              <SteplyButton variant="secondary" onClick={onViewProgress}>History</SteplyButton>
               <SteplyButton variant="secondary" onClick={() => setShowHelp((current) => !current)}>Help</SteplyButton>
             </div>
           </div>

@@ -73,9 +73,19 @@ export function TimerCircle({ value = 17, max = 30, label = 'seconds', score = 8
   );
 }
 
-export function ExerciseCard({ number, title, description, minutes, type = 'A', completed = false, safety }) {
+export function ExerciseCard({
+  number,
+  title,
+  description,
+  minutes,
+  type = 'A',
+  completed = false,
+  safety,
+  action,
+  active = false,
+}) {
   return (
-    <SteplyCard className={`exercise-card ${completed ? 'exercise-card--complete' : ''}`}>
+    <SteplyCard className={`exercise-card ${completed ? 'exercise-card--complete' : ''} ${active ? 'exercise-card--active' : ''}`}>
       <div className="exercise-card__topline">
         <span className="exercise-card__number">{number}</span>
         <span className="exercise-card__chip">{type}</span>
@@ -87,6 +97,7 @@ export function ExerciseCard({ number, title, description, minutes, type = 'A', 
         <span>{completed ? 'Completed' : 'Guided'}</span>
       </div>
       {safety ? <div className="exercise-card__safety">{safety}</div> : null}
+      {action ? <div className="exercise-card__action">{action}</div> : null}
     </SteplyCard>
   );
 }

@@ -11,6 +11,10 @@
   overflow: hidden;
 }
 
+.journey-flow--compact {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
 .journey-step {
   position: relative;
   display: flex;

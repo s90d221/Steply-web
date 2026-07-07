@@ -269,6 +269,25 @@ export default function App() {
           : dashboard.activeStep === 'progress'
             ? 'progress'
             : 'home';
+  const shouldShowJourneyFlow = activeContext !== 'home';
+
+  const pageHeader = activeContext === 'home'
+    ? {
+      eyebrow: 'Steply Home',
+      title: 'Today’s balance mission',
+      description: 'Start with one large button. Steply will guide the check, exercise, and progress review step by step.',
+    }
+    : activeContext === 'care'
+      ? {
+        eyebrow: 'Steply Care',
+        title: 'Senior center dashboard',
+        description: 'Screen participants, manage today’s queue, and decide who needs follow-up.',
+      }
+      : {
+        eyebrow: 'Steply Reports',
+        title: 'Weekly movement reports',
+        description: 'Review changes over time for family check-ins and rehabilitation guidance.',
+      };
 
   const renderHomePanel = () => {
     const panelDashboard = {
@@ -349,15 +368,13 @@ export default function App() {
   };
 
   return (
-    <div className="steply-shell steply-shell--main service-shell">
+    <div className={`steply-shell steply-shell--main service-shell service-shell--${activeContext} service-shell--view-${activeView}`}>
       <main className="dashboard-main service-main">
         <header className="top-bar service-top-bar">
           <div>
-            <div className="eyebrow">Steply</div>
-            <h1>Balance support that fits the setting.</h1>
-            <p>
-              A guided home mission, a center screening dashboard, and weekly movement reports share one clear flow.
-            </p>
+            <div className="eyebrow">{pageHeader.eyebrow}</div>
+            <h1>{pageHeader.title}</h1>
+            <p>{pageHeader.description}</p>
           </div>
           <div className="top-bar__status" aria-label="service status">
             <span className={isMobileConnected ? 'status-dot' : 'status-dot status-dot--waiting'} />
@@ -374,7 +391,9 @@ export default function App() {
           isMobileConnected={isMobileConnected}
         />
 
-        <JourneyFlow activeStep={dashboard.activeStep} />
+        {shouldShowJourneyFlow ? (
+          <JourneyFlow activeStep={dashboard.activeStep} compact={activeContext === 'home'} />
+        ) : null}
 
         <div className="screen-stage" key={`${activeContext}-${dashboard.activeStep}-${reportMode}-${participantId || 'dashboard'}`}>
           {renderActiveContext()}

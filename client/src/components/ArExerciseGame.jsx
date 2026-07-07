@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { PoseOverlay } from './pose/PoseOverlay';
+import {
+  mapPointToMediaRect,
+  mediaRectForObjectFit,
+  PoseOverlay,
+  useElementSize,
+} from './pose/PoseOverlay';
 import {
   ArExerciseGameLabels,
   ArExerciseGameTypes,
@@ -65,6 +70,7 @@ export function ArExerciseGame({
   const activeRecommendation = playableRecommendations[activeIndex] || playableRecommendations[0] || null;
   const gameType = activeRecommendation ? gameTypeForRecommendation(activeRecommendation) : null;
   const [gameState, setGameState] = useState(() => createInitialArGameState(gameType));
+  const [stageRef, stageSize] = useElementSize();
 
   useEffect(() => {
     if (activeIndex >= playableRecommendations.length) setActiveIndex(0);
@@ -99,6 +105,11 @@ export function ArExerciseGame({
     ));
   }, [activeRecommendation, gameType, poseAnalysis?.landmarks]);
 
+  const cameraMediaRect = useMemo(
+    () => mediaRectForObjectFit(poseAnalysis?.frameSize, stageSize, 'cover'),
+    [poseAnalysis?.frameSize, stageSize],
+  );
+
   if (!activeRecommendation || !gameType) return null;
 
   const target = gameState.target || { x: 50, y: 50 };
@@ -107,10 +118,13 @@ export function ArExerciseGame({
     && !hasLivePose
     && gameType === ArExerciseGameTypes.BubbleLegRaise;
   const visualTarget = showDemoBubblePath ? { x: 62, y: 20 } : target;
+  const mappedVisualTarget = remoteCameraFrame?.src
+    ? mapPointToMediaRect({ x: visualTarget.x / 100, y: visualTarget.y / 100 }, cameraMediaRect)
+    : visualTarget;
   const progressPercent = Math.round((gameState.progress || 0) * 100);
   const objectStyle = {
-    left: `${visualTarget.x}%`,
-    top: `${visualTarget.y}%`,
+    left: `${mappedVisualTarget.x}%`,
+    top: `${mappedVisualTarget.y}%`,
   };
   const objectContent = gameType === ArExerciseGameTypes.ButterflyBalance
     ? <ButterflyObject />
@@ -140,7 +154,7 @@ export function ArExerciseGame({
         onSelect={setActiveIndex}
       />
 
-      <div className="ar-game-stage">
+      <div className="ar-game-stage" ref={stageRef}>
         {remoteCameraFrame?.src ? (
           <img
             className="ar-game-camera-frame"
@@ -150,7 +164,7 @@ export function ArExerciseGame({
         ) : (
           <div className="ar-game-camera-placeholder" />
         )}
-        <PoseOverlay landmarks={poseAnalysis?.landmarks || []} />
+        <PoseOverlay landmarks={poseAnalysis?.landmarks || []} frameSize={poseAnalysis?.frameSize} fit="cover" />
         {showDemoBubblePath ? (
           <div className="ar-game-demo-path" aria-hidden="true">
             <span />

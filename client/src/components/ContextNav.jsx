@@ -7,13 +7,27 @@ const contextOptions = [
 ];
 
 const navItems = [
-  { id: 'home', label: 'Home / Today', context: 'home' },
-  { id: 'mission', label: 'Mission', context: 'home' },
-  { id: 'exercise', label: 'Exercise', context: 'home' },
-  { id: 'progress', label: 'Progress', context: 'home' },
+  { id: 'home', label: 'Today', context: 'home' },
+  { id: 'mission', label: 'Start Mission', context: 'home' },
+  { id: 'exercise', label: 'Exercise Game', context: 'home' },
+  { id: 'progress', label: 'My Progress', context: 'home' },
   { id: 'care', label: 'Care Dashboard', context: 'care' },
   { id: 'reports', label: 'Reports', context: 'reports' },
 ];
+
+const seniorNavItems = navItems.filter((item) => item.context === 'home');
+
+function CameraStatus({ isMobileConnected, onOpenCameraLink }) {
+  return (
+    <div className="camera-link-status">
+      <span className={isMobileConnected ? 'status-dot' : 'status-dot status-dot--waiting'} />
+      <span>{isMobileConnected ? 'Camera linked' : 'Camera not linked'}</span>
+      <SteplyButton variant="secondary" className="camera-link-status__button" onClick={onOpenCameraLink}>
+        Connect phone camera
+      </SteplyButton>
+    </div>
+  );
+}
 
 export function ContextNav({
   activeContext,
@@ -23,6 +37,41 @@ export function ContextNav({
   onOpenCameraLink,
   isMobileConnected,
 }) {
+  if (activeContext === 'home') {
+    return (
+      <div className="service-navigation service-navigation--senior" aria-label="Steply home navigation">
+        <nav className="senior-primary-nav" aria-label="Home sections">
+          {seniorNavItems
+            .filter((item) => item.id !== 'exercise')
+            .map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={activeView === item.id ? 'primary-nav__item primary-nav__item--active' : 'primary-nav__item'}
+              onClick={() => onNavigate(item.id)}
+            >
+              {item.label}
+            </button>
+          ))}
+          <button
+            type="button"
+            className="primary-nav__item senior-camera-link"
+            onClick={onOpenCameraLink}
+          >
+            <span className={isMobileConnected ? 'status-dot' : 'status-dot status-dot--waiting'} />
+            {isMobileConnected ? 'Camera Ready' : 'Connect Camera'}
+          </button>
+          <button type="button" className="senior-support-link" onClick={() => onNavigate('care')}>
+            Staff
+          </button>
+          <button type="button" className="senior-support-link" onClick={() => onNavigate('reports')}>
+            Reports
+          </button>
+        </nav>
+      </div>
+    );
+  }
+
   return (
     <div className="service-navigation" aria-label="Steply service navigation">
       <div className="context-switcher" role="tablist" aria-label="Choose how you are using Steply">
@@ -55,13 +104,7 @@ export function ContextNav({
           ))}
         </nav>
 
-        <div className="camera-link-status">
-          <span className={isMobileConnected ? 'status-dot' : 'status-dot status-dot--waiting'} />
-          <span>{isMobileConnected ? 'Camera linked' : 'Camera not linked'}</span>
-          <SteplyButton variant="secondary" className="camera-link-status__button" onClick={onOpenCameraLink}>
-            Connect phone camera
-          </SteplyButton>
-        </div>
+        <CameraStatus isMobileConnected={isMobileConnected} onOpenCameraLink={onOpenCameraLink} />
       </div>
     </div>
   );

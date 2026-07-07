@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { PoseConnections } from '../../pose/poseLandmarks';
 
 export const POSE_OVERLAY_MIN_VISIBILITY = 0.35;
@@ -18,38 +19,132 @@ export function posePointToOverlayPercent(point) {
   };
 }
 
-export function PoseOverlay({ landmarks }) {
-  const pointMap = pointByName(landmarks);
-  if (!landmarks?.length) return null;
+export function useElementSize() {
+  const ref = useRef(null);
+  const [size, setSize] = useState({ width: 0, height: 0 });
+
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return undefined;
+
+    const updateSize = () => {
+      const rect = element.getBoundingClientRect();
+      setSize((current) => (
+        Math.abs(current.width - rect.width) < 0.5 && Math.abs(current.height - rect.height) < 0.5
+          ? current
+          : { width: rect.width, height: rect.height }
+      ));
+    };
+
+    updateSize();
+
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', updateSize);
+      return () => window.removeEventListener('resize', updateSize);
+    }
+
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  return [ref, size];
+}
+
+export function mediaRectForObjectFit(frameSize, containerSize, fit = 'contain') {
+  const frameWidth = Number(frameSize?.width);
+  const frameHeight = Number(frameSize?.height);
+  const containerWidth = Number(containerSize?.width);
+  const containerHeight = Number(containerSize?.height);
+
+  if (
+    !Number.isFinite(frameWidth)
+    || !Number.isFinite(frameHeight)
+    || !Number.isFinite(containerWidth)
+    || !Number.isFinite(containerHeight)
+    || frameWidth <= 0
+    || frameHeight <= 0
+    || containerWidth <= 0
+    || containerHeight <= 0
+  ) {
+    return { x: 0, y: 0, width: 100, height: 100 };
+  }
+
+  const frameRatio = frameWidth / frameHeight;
+  const containerRatio = containerWidth / containerHeight;
+  const shouldCover = fit === 'cover';
+
+  if (containerRatio > frameRatio) {
+    const width = shouldCover ? 100 : (frameRatio / containerRatio) * 100;
+    const height = shouldCover ? (containerRatio / frameRatio) * 100 : 100;
+    return {
+      x: (100 - width) / 2,
+      y: (100 - height) / 2,
+      width,
+      height,
+    };
+  }
+
+  const width = shouldCover ? (frameRatio / containerRatio) * 100 : 100;
+  const height = shouldCover ? 100 : (containerRatio / frameRatio) * 100;
+  return {
+    x: (100 - width) / 2,
+    y: (100 - height) / 2,
+    width,
+    height,
+  };
+}
+
+export function mapPointToMediaRect(point, mediaRect) {
+  if (!point) return null;
+  return {
+    x: mediaRect.x + point.x * mediaRect.width,
+    y: mediaRect.y + point.y * mediaRect.height,
+  };
+}
+
+export function PoseOverlay({ landmarks, frameSize, fit = 'contain' }) {
+  const [overlayRef, overlaySize] = useElementSize();
+  const visibleLandmarks = landmarks || [];
+  const pointMap = pointByName(visibleLandmarks);
+  const mediaRect = useMemo(
+    () => mediaRectForObjectFit(frameSize, overlaySize, fit),
+    [fit, frameSize, overlaySize],
+  );
 
   return (
-    <svg className="pose-overlay" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+    <svg ref={overlayRef} className="pose-overlay" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
       {PoseConnections.map(([from, to]) => {
         const a = pointMap.get(from);
         const b = pointMap.get(to);
         if (!a || !b) return null;
+        const start = mapPointToMediaRect(a, mediaRect);
+        const end = mapPointToMediaRect(b, mediaRect);
         return (
           <line
             key={`${from}-${to}`}
-            x1={a.x * 100}
-            y1={a.y * 100}
-            x2={b.x * 100}
-            y2={b.y * 100}
+            x1={start.x}
+            y1={start.y}
+            x2={end.x}
+            y2={end.y}
             vectorEffect="non-scaling-stroke"
           />
         );
       })}
-      {landmarks
+      {visibleLandmarks
         .filter((point) => (point.visibility ?? 1) >= 0.35)
-        .map((point) => (
-          <circle
-            key={point.name}
-            cx={point.x * 100}
-            cy={point.y * 100}
-            r="0.9"
-            vectorEffect="non-scaling-stroke"
-          />
-        ))}
+        .map((point) => {
+          const overlayPoint = mapPointToMediaRect(point, mediaRect);
+          return (
+            <circle
+              key={point.name}
+              cx={overlayPoint.x}
+              cy={overlayPoint.y}
+              r="0.9"
+              vectorEffect="non-scaling-stroke"
+            />
+          );
+        })}
     </svg>
   );
 }

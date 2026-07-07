@@ -6,6 +6,8 @@ export const recommendationExercises = [
     minutes: '5',
     type: '10 reps',
     safety: 'Keep both feet flat and move without rushing.',
+    exerciseKey: 'chair_stand',
+    arInputKey: 'sit_to_stand',
   },
   {
     number: '2',
@@ -15,6 +17,8 @@ export const recommendationExercises = [
     type: 'Guided',
     completed: true,
     safety: 'Stop if you feel dizzy or unstable.',
+    exerciseKey: 'balance_retraining',
+    arInputKey: 'balance_retraining',
   },
   {
     number: '3',
@@ -23,5 +27,7 @@ export const recommendationExercises = [
     minutes: '3',
     type: 'Hold',
     safety: 'Use support and keep the area clear.',
+    exerciseKey: 'tandem_stance',
+    arInputKey: 'tandem_stance',
   },
 ];

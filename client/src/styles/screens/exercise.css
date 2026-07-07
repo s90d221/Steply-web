@@ -103,6 +103,8 @@
 
 .ar-game-stage {
   position: relative;
+  display: grid;
+  place-items: center;
   width: 100%;
   height: clamp(420px, 42vw, 560px);
   min-height: 0;
@@ -126,6 +128,7 @@
 
 .ar-game-camera-frame {
   object-fit: cover;
+  object-position: center center;
 }
 
 .ar-game-camera-placeholder {
@@ -379,6 +382,10 @@
   min-height: 320px;
 }
 .exercise-card--complete { background: var(--primary-container); }
+.exercise-card--active {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent);
+}
 .exercise-card__topline { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .exercise-card__number {
   display: grid;
@@ -422,5 +429,33 @@
   color: var(--tertiary);
   font-size: var(--distance-font-small);
   font-weight: 600;
+}
+.exercise-card__action {
+  align-self: end;
+}
+.exercise-card__action .steply-button {
+  width: 100%;
+}
+.ar-game-launch-card {
+  display: grid;
+  align-items: center;
+  min-height: 240px;
+  background:
+    linear-gradient(color-mix(in srgb, var(--primary) 10%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--primary) 10%, transparent) 1px, transparent 1px),
+    var(--surface);
+  background-size: 42px 42px;
+}
+.ar-game-launch-card h3 {
+  margin: 8px 0;
+  color: var(--text-primary);
+  font-size: 36px;
+  font-weight: 800;
+}
+.ar-game-launch-card p {
+  max-width: 720px;
+  color: var(--distance-contrast-text);
+  font-size: var(--distance-font-body);
+  font-weight: 700;
 }
 .wide-cta { max-width: 620px; justify-self: center; }

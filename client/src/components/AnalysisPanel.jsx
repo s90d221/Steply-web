@@ -468,7 +468,7 @@ export function AnalysisPanel({
                       style={{ opacity: referenceOverlayOpacity }}
                     />
                   ) : null}
-                  <PoseOverlay landmarks={poseAnalysis?.landmarks || []} />
+                  <PoseOverlay landmarks={poseAnalysis?.landmarks || []} frameSize={poseAnalysis?.frameSize} />
                 </div>
               ) : (
                 <>

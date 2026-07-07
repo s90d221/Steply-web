@@ -6,11 +6,11 @@ function isStepActive(step, activeStep) {
   return Array.isArray(step.activeWhen) && step.activeWhen.includes(activeStep);
 }
 
-export function JourneyFlow({ activeStep, onStepChange }) {
+export function JourneyFlow({ activeStep, onStepChange, compact = false }) {
   const isReadOnly = typeof onStepChange !== 'function';
 
   return (
-    <nav className="journey-flow" aria-label="Steply flow">
+    <nav className={compact ? 'journey-flow journey-flow--compact' : 'journey-flow'} aria-label="Steply flow">
       {journeySteps.map((step, index) => (
         <button
           key={step.id}

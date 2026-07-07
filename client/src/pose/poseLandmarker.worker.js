@@ -7,7 +7,8 @@ import wasmModuleBinaryUrl from '../vendor/mediapipe/wasm/vision_wasm_module_int
 
 const DEFAULT_MODEL_PATH = '/models/pose_landmarker_lite.task';
 const DEFAULT_WASM_PATH = '/wasm';
-const MIN_FRAME_INTERVAL_MS = 95;
+const MIN_FRAME_INTERVAL_MS = 66;
+const MIN_POSE_CONFIDENCE = 0.35;
 const PROCESSING_TELEMETRY_SAMPLE_LIMIT = 60;
 const PROCESSING_TELEMETRY_REPORT_INTERVAL = 20;
 
@@ -142,9 +143,9 @@ async function initLandmarker(config = {}) {
           },
           runningMode: 'VIDEO',
           numPoses: 1,
-          minPoseDetectionConfidence: 0.5,
-          minPosePresenceConfidence: 0.5,
-          minTrackingConfidence: 0.5,
+          minPoseDetectionConfidence: config.minPoseDetectionConfidence || MIN_POSE_CONFIDENCE,
+          minPosePresenceConfidence: config.minPosePresenceConfidence || MIN_POSE_CONFIDENCE,
+          minTrackingConfidence: config.minTrackingConfidence || MIN_POSE_CONFIDENCE,
         });
         debug('landmarker-delegate-ready', { delegate, runningMode: 'VIDEO' });
         break;
@@ -242,18 +243,29 @@ function recordProcessingTelemetry({ analyzedAt, inferenceDurationMs }) {
 }
 
 async function imageBitmapFromFrame(frame) {
+  const createBitmap = async (source) => {
+    try {
+      return await createImageBitmap(source, {
+        imageOrientation: 'from-image',
+        colorSpaceConversion: 'default',
+      });
+    } catch (_) {
+      return createImageBitmap(source);
+    }
+  };
+
   if (frame instanceof Blob) {
-    return createImageBitmap(frame);
+    return createBitmap(frame);
   }
 
   if (frame instanceof ArrayBuffer) {
-    return createImageBitmap(new Blob([frame], { type: 'image/jpeg' }));
+    return createBitmap(new Blob([frame], { type: 'image/jpeg' }));
   }
 
   if (typeof frame === 'string') {
     const response = await fetch(frame);
     const blob = await response.blob();
-    return createImageBitmap(blob);
+    return createBitmap(blob);
   }
 
   throw new Error('Unsupported camera frame type.');

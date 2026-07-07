@@ -79,13 +79,17 @@ export function useRemotePoseAnalysis({ session, selectedTest, remoteCameraFrame
       if (message.type === 'debug') {
         setDebugLog((current) => [...current.slice(-19), message]);
       }
-      if (message.type === 'ready') setWorkerStatus('ready');
+      if (message.type === 'ready') {
+        setError('');
+        setWorkerStatus('ready');
+      }
       if (message.type === 'session-started') {
         if (finishFallbackTimerRef.current) window.clearTimeout(finishFallbackTimerRef.current);
         finishFallbackTimerRef.current = null;
         runningRef.current = true;
         startedAtRef.current = message.startedAt || Date.now();
         autoFinishedRef.current = false;
+        setError('');
         setIsRunning(true);
         setAnalysisResult(null);
         setProcessingStats(null);
@@ -95,6 +99,7 @@ export function useRemotePoseAnalysis({ session, selectedTest, remoteCameraFrame
         }
       }
       if (message.type === 'analysis-frame') {
+        setError('');
         if (message.state) {
           analysisStateRef.current = message.state;
           setAnalysisState(message.state);
@@ -105,6 +110,7 @@ export function useRemotePoseAnalysis({ session, selectedTest, remoteCameraFrame
         setWorkerStatus('analyzing');
       }
       if (message.type === 'preview-frame') {
+        setError('');
         setLandmarks(message.landmarks || []);
         if (message.frameSize) setFrameSize(message.frameSize);
         setWorkerStatus('previewing');
@@ -129,6 +135,7 @@ export function useRemotePoseAnalysis({ session, selectedTest, remoteCameraFrame
         setIsRunning(false);
         setAnalysisResult(null);
         setProcessingStats(null);
+        setError('');
         analysisStateRef.current = message.state || initialState;
         setAnalysisState(message.state || initialState);
         setLandmarks([]);

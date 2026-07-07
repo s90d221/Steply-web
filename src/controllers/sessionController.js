@@ -10,8 +10,25 @@ async function createSession(req, res) {
 
 async function connectSession(req, res, sessionId) {
   const body = await readBodyJson(req);
+  if (body.sessionId && body.sessionId !== sessionId) {
+    return sendJson(res, 400, { error: 'sessionId does not match URL.' });
+  }
   const profile = body.profile || body;
-  const result = sessionService.connectProfile(sessionId, profile);
+  const pairingToken = body.pairingToken || req.headers['x-steply-pairing-token'] || '';
+  const result = sessionService.connectProfile(sessionId, profile, pairingToken);
+
+  if (result.error) return sendJson(res, result.status, { error: result.error });
+  return sendJson(res, 200, { ok: true, session: result.session });
+}
+
+async function cleanupSession(req, res, sessionId) {
+  const body = await readBodyJson(req);
+  if (body.sessionId && body.sessionId !== sessionId) {
+    return sendJson(res, 400, { error: 'sessionId does not match URL.' });
+  }
+  const pairingToken = body.pairingToken || req.headers['x-steply-pairing-token'] || '';
+  const reason = body.reason || 'mobile-cleanup-request';
+  const result = sessionService.cleanupSession(sessionId, pairingToken, reason);
 
   if (result.error) return sendJson(res, result.status, { error: result.error });
   return sendJson(res, 200, { ok: true, session: result.session });
@@ -35,6 +52,7 @@ function getSessionStatus(req, res, sessionId) {
 module.exports = {
   createSession,
   connectSession,
+  cleanupSession,
   selectTest,
   getSessionStatus,
 };

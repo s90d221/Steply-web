@@ -2,7 +2,7 @@
   "name": "steply-web-dashboard",
   "version": "0.2.0",
   "private": true,
-  "description": "Steply React dashboard for QR session linking, movement check selection, realtime pose analysis display, recommendations, and local history storage.",
+  "description": "Steply React dashboard for QR session linking, movement check selection, realtime pose analysis display, recommendations, and phone-owned history sync.",
   "scripts": {
     "dev": "node scripts/prepare-mediapipe-assets.js && node scripts/dev.js",
     "server": "node server.js",
@@ -10,17 +10,24 @@
     "build": "node scripts/prepare-mediapipe-assets.js && vite build",
     "start": "node server.js",
     "check": "node scripts/prepare-mediapipe-assets.js --optional && node scripts/check.js",
-    "prepare:mediapipe": "node scripts/prepare-mediapipe-assets.js"
+    "prepare:mediapipe": "node scripts/prepare-mediapipe-assets.js",
+    "balance:log": "node scripts/log-balance-sequence.mjs",
+    "chair:log": "node scripts/log-chair-stand-sequence.mjs",
+    "steadi:risk:check": "node scripts/check-steadi-risk.mjs",
+    "weak:check": "node scripts/check-weak-areas.mjs",
+    "otago:check": "node scripts/check-otago-recommendations.mjs",
+    "ar:check": "node scripts/check-ar-games.mjs",
+    "history:check": "node scripts/check-history-trends.mjs"
   },
   "dependencies": {
+    "@mediapipe/tasks-vision": "^0.10.22",
     "@vitejs/plugin-react": "^5.0.4",
-    "vite": "^7.1.9",
-    "typescript": "^5.9.3",
+    "qrcode": "^1.5.4",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
-    "qrcode": "^1.5.4",
-    "ws": "^8.18.0",
-    "@mediapipe/tasks-vision": "^0.10.22"
-  },
-  "devDependencies": {}
+    "recharts": "^3.9.2",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.9",
+    "ws": "^8.18.0"
+  }
 }

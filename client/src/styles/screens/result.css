@@ -2,13 +2,25 @@
   position: relative;
   min-height: auto;
   overflow: hidden;
-  padding: 18px;
   background: var(--primary-container);
   border-color: color-mix(in srgb, var(--primary) 22%, var(--outline));
 }
 
-.result-hero-card h2 { font-size: clamp(28px, 4vw, 36px); margin-bottom: 12px; font-weight: 800; }
-.result-hero-card p { max-width: 620px; font-size: 15px; margin-bottom: 18px; }
+.result-hero-card h2 {
+  max-width: 840px;
+  font-size: var(--distance-font-title);
+  margin-bottom: 16px;
+  font-weight: 800;
+}
+
+.result-hero-card p {
+  max-width: 920px;
+  margin-bottom: 22px;
+  color: var(--distance-contrast-text);
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.3;
+}
 
 .celebration-orb {
   display: none;
@@ -17,27 +29,64 @@
 .feedback-result-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 16px;
+  gap: var(--distance-gap);
   align-items: start;
 }
 
 .feedback-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
 }
 
 .feedback-list span {
-  padding: 10px 12px;
-  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  min-height: 84px;
+  padding: 18px 20px;
+  border: 2px solid color-mix(in srgb, var(--primary) 34%, var(--outline));
+  border-radius: var(--radius-card);
   background: var(--primary-container);
-  color: var(--primary);
-  font-size: 14px;
+  color: var(--distance-contrast-text);
+  font-size: var(--distance-font-small);
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.safety-step-badge {
+  display: grid;
+  grid-template-columns: var(--distance-icon-size) minmax(0, 1fr);
+  gap: 20px;
+  align-items: center;
+  background: var(--distance-warning-bg);
+  border-color: color-mix(in srgb, var(--tertiary) 36%, var(--outline));
+}
+
+.safety-step-badge__icon {
+  display: grid;
+  place-items: center;
+  width: var(--distance-icon-size);
+  height: var(--distance-icon-size);
+  border-radius: 50%;
+  color: var(--on-primary);
+  background: var(--primary);
+  font-size: 46px;
+  font-weight: 900;
+}
+
+.safety-step-badge h3 {
+  font-size: 34px;
+  font-weight: 800;
+}
+
+.safety-step-badge p {
+  color: var(--distance-contrast-muted);
+  font-size: var(--distance-font-body);
   font-weight: 700;
 }
 
 .result-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: var(--distance-gap);
 }

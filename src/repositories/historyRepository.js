@@ -1,33 +1,28 @@
 const fs = require('fs');
-const { DATA_DIR, HISTORY_PATH } = require('../config/env');
+const { HISTORY_PATH } = require('../config/env');
 
+let transientHistoryItems = [];
+
+// The phone app is the only persistent personal-history store. The PC keeps
+// final results in process memory only while a session is active.
 function ensureDataFiles() {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  if (!fs.existsSync(HISTORY_PATH)) {
-    fs.writeFileSync(HISTORY_PATH, JSON.stringify({ items: [] }, null, 2));
+  if (fs.existsSync(HISTORY_PATH)) {
+    fs.unlinkSync(HISTORY_PATH);
   }
 }
 
 function readHistory() {
   ensureDataFiles();
-  try {
-    const history = JSON.parse(fs.readFileSync(HISTORY_PATH, 'utf8'));
-    return Array.isArray(history.items) ? history : { items: [] };
-  } catch (_) {
-    return { items: [] };
-  }
-}
-
-function writeHistory(history) {
-  ensureDataFiles();
-  fs.writeFileSync(HISTORY_PATH, JSON.stringify(history, null, 2));
+  return { items: transientHistoryItems.slice() };
 }
 
 function addHistoryItem(item) {
-  const history = readHistory();
-  history.items.unshift(item);
-  writeHistory(history);
+  transientHistoryItems.unshift(item);
   return item;
+}
+
+function removeHistoryBySessionId(sessionId) {
+  transientHistoryItems = transientHistoryItems.filter((item) => item.sessionId !== sessionId);
 }
 
 function findHistoryByUserId(userId) {
@@ -39,5 +34,6 @@ module.exports = {
   ensureDataFiles,
   readHistory,
   addHistoryItem,
+  removeHistoryBySessionId,
   findHistoryByUserId,
 };

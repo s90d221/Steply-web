@@ -1,39 +1,77 @@
 import { chairStandBelowAverageThreshold } from './steadiRules';
+import { otagoRecommendationsForWeakAreas } from './otagoRecommendations';
 
-export const RecommendationLevels = {
+export {
+  OTAGO_RECOMMENDATION_SCHEMA_VERSION,
+  OtagoExerciseCatalog,
+  OtagoExerciseKeys,
+  WeakAreaToOtagoExerciseMap,
+  normalizeWeakAreaId,
+  otagoExerciseKeysForWeakAreas,
+  otagoRecommendationsForWeakAreas,
+} from './otagoRecommendations';
+
+export const ExerciseDifficultyLevels = {
+  MeasurementOnly: 'measurement_only',
   Steady: 'steady',
   PracticeNeeded: 'practice_needed',
   Recheck: 'recheck',
 };
 
-export function calculateRecommendationLevel(repetitionCount) {
-  if (repetitionCount >= 12) return RecommendationLevels.Steady;
-  if (repetitionCount >= 8) return RecommendationLevels.PracticeNeeded;
-  return RecommendationLevels.Recheck;
+// Backward-compatible alias for UI code that still reads "recommendationLevel".
+// These labels describe exercise prescription difficulty, not STEADI fall-risk class.
+export const RecommendationLevels = ExerciseDifficultyLevels;
+
+export function calculateExerciseDifficultyLevel(repetitionCount) {
+  if (repetitionCount >= 12) return ExerciseDifficultyLevels.Steady;
+  if (repetitionCount >= 8) return ExerciseDifficultyLevels.PracticeNeeded;
+  return ExerciseDifficultyLevels.Recheck;
 }
 
-export function calculateRecommendationLevelWithProfile({ repetitionCount, ageYears, gender, armUseDisqualified = false }) {
-  if (armUseDisqualified || repetitionCount <= 0) return RecommendationLevels.Recheck;
+export function calculateExerciseDifficultyLevelWithProfile({
+  repetitionCount,
+  ageYears,
+  gender,
+  armUseDisqualified = false,
+}) {
+  if (armUseDisqualified || repetitionCount <= 0) return ExerciseDifficultyLevels.Recheck;
   const threshold = chairStandBelowAverageThreshold(ageYears, gender);
-  if (!threshold) return calculateRecommendationLevel(repetitionCount);
-  return repetitionCount < threshold ? RecommendationLevels.PracticeNeeded : RecommendationLevels.Steady;
+  if (!threshold) return calculateExerciseDifficultyLevel(repetitionCount);
+  return repetitionCount < threshold ? ExerciseDifficultyLevels.PracticeNeeded : ExerciseDifficultyLevels.Steady;
 }
 
-export function recommendationLabel(level) {
-  if (level === RecommendationLevels.Steady) return 'Steady';
-  if (level === RecommendationLevels.PracticeNeeded) return 'Practice Recommended';
+export function calculateRecommendationLevel(repetitionCount) {
+  return calculateExerciseDifficultyLevel(repetitionCount);
+}
+
+export function calculateRecommendationLevelWithProfile(options) {
+  return calculateExerciseDifficultyLevelWithProfile(options);
+}
+
+export function exerciseDifficultyLabel(level) {
+  if (level === ExerciseDifficultyLevels.MeasurementOnly) return 'Measured';
+  if (level === ExerciseDifficultyLevels.Steady) return 'Steady';
+  if (level === ExerciseDifficultyLevels.PracticeNeeded) return 'Practice Recommended';
   return 'Recheck Needed';
 }
 
+export function recommendationLabel(level) {
+  return exerciseDifficultyLabel(level);
+}
+
 export function testLabel(testType) {
+  if (testType === 'four_stage_balance') return '4-Stage Balance';
   if (testType === 'standing_posture' || testType === 'balance_hold') return 'Standing Posture';
-  if (testType === 'tug' || testType === 'tug_walk') return 'TUG';
   return '30 sec Chair Stand';
 }
 
 export function recommendationTemplatesForLevel(level, testType = 'chair_stand') {
   const stopIfUncomfortable = 'Stop immediately if there is pain, dizziness, or discomfort.';
   const useSupport = 'Use a stable chair or caregiver support if needed.';
+
+  if (testType === 'four_stage_balance' && level === RecommendationLevels.MeasurementOnly) {
+    return [];
+  }
 
   if (testType === 'standing_posture' || testType === 'balance_hold') {
     if (level === RecommendationLevels.Steady) {
@@ -63,40 +101,6 @@ export function recommendationTemplatesForLevel(level, testType = 'chair_stand')
       {
         title: 'Gentle Weight Shift',
         description: 'Hold a chair and slowly shift weight left and right',
-        safetyNote: stopIfUncomfortable,
-        durationSeconds: 45,
-      },
-    ];
-  }
-
-  if (testType === 'tug' || testType === 'tug_walk') {
-    if (level === RecommendationLevels.Steady) {
-      return [
-        {
-          title: 'Controlled Turn Practice',
-          description: 'Walk a short safe path, turn slowly, and return with steady steps',
-          safetyNote: useSupport,
-          durationSeconds: 45,
-        },
-        {
-          title: 'Supported Balance Hold',
-          description: 'Hold the back of a stable chair and stand comfortably for 20 seconds',
-          safetyNote: `Sit and rest if you feel unstable. ${useSupport}`,
-          durationSeconds: 20,
-        },
-      ];
-    }
-
-    return [
-      {
-        title: 'Sit-to-Stand With Support',
-        description: 'Use a stable chair and slowly stand up, pause, then sit down',
-        safetyNote: `Do not rush. ${useSupport}`,
-        durationSeconds: 60,
-      },
-      {
-        title: 'Short Walk and Turn Drill',
-        description: 'With support nearby, practice a few slow steps and a careful turn',
         safetyNote: stopIfUncomfortable,
         durationSeconds: 45,
       },
@@ -153,18 +157,34 @@ export function recommendationTemplatesForLevel(level, testType = 'chair_stand')
   ];
 }
 
+export function recommendationTemplatesForResult(result = {}) {
+  const otagoRecommendations = otagoRecommendationsForWeakAreas(
+    result.weakAreas
+      || result.weakAreaIds
+      || result.weakAreaResult
+      || result.weakArea,
+  );
+  if (otagoRecommendations.length) return otagoRecommendations;
+  return recommendationTemplatesForLevel(result.recommendationLevel, result.testType);
+}
+
 export function resultFlagsFor(result, testType = 'chair_stand') {
   const percent = (value) => `${Math.round((value || 0) * 100)}%`;
   const primaryValue = result.primaryValue ?? result.repetitionCount ?? 0;
   const primaryLabel = result.primaryLabel || 'Measured Value';
 
-  if (testType === 'tug' || testType === 'tug_walk') {
-    return [
-      `${primaryLabel}: ${primaryValue}s`,
-      result.riskSignal ? 'TUG fall-risk signal: 12 seconds or more' : 'TUG time stayed under the 12 second risk signal',
-      `Walking stability ${percent(result.stabilityScore)}`,
-      `Trunk center ${percent(result.trunkLeanScore)}`,
-    ];
+  if (testType === 'four_stage_balance') {
+    const balance = result.balanceResult;
+    if (!balance?.stages?.length) {
+      return [
+        `${primaryLabel}: ${primaryValue}`,
+        '4-stage balance measurement captured.',
+        'Risk interpretation is intentionally not applied in this step.',
+      ];
+    }
+    return balance.stages.map((stage) => (
+      `${stage.title}: ${stage.holdSeconds.toFixed(1)}s observed, dynamic ML sway ${stage.dynamicAdjustment.sway.mediolateral.standardDeviation?.toFixed(4) ?? '-'}`
+    ));
   }
 
   if (testType === 'standing_posture' || testType === 'balance_hold') {

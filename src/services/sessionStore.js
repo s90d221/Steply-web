@@ -10,6 +10,10 @@ function getSession(sessionId) {
   return sessions.get(sessionId);
 }
 
+function listSessions() {
+  return [...sessions.values()];
+}
+
 function hasSession(sessionId) {
   return sessions.has(sessionId);
 }
@@ -34,11 +38,27 @@ function broadcast(sessionId, message) {
   }
 }
 
+function clearSessionPersonalData(sessionId, reason = 'session-cleanup') {
+  const session = sessions.get(sessionId);
+  if (!session) return null;
+
+  session.profile = null;
+  session.connectedAt = null;
+  session.selectedTest = null;
+  session.latestResult = null;
+  session.finalResult = null;
+  session.cleanedAt = Date.now();
+  session.cleanupReason = reason;
+  return session;
+}
+
 module.exports = {
   saveSession,
   getSession,
+  listSessions,
   hasSession,
   getOrCreateSocketSet,
   removeSocket,
   broadcast,
+  clearSessionPersonalData,
 };

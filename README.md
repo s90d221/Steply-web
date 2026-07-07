@@ -5,8 +5,8 @@ Steply Web is a React + Vite PC dashboard with a local Node.js API/WebSocket ser
 This version keeps the mobile app simple:
 
 ```txt
-Mobile = profile storage + QR linking + camera frame streaming only
-PC Web = frame receiving + MediaPipe keypoint extraction + posture analysis + result UI/history
+Mobile = profile/history storage + QR linking + camera frame streaming only
+PC Web = frame receiving + MediaPipe keypoint extraction + posture analysis + transient result UI
 ```
 
 The visual direction is:
@@ -23,7 +23,7 @@ The visual direction is:
 - PC-side Chair Stand analysis rules ported from the Android/Kotlin analyzer
 - Background analysis in a Web Worker so the UI stays responsive
 - Realtime count / phase / full-body visibility / warning display
-- Final result save to local history
+- Final result broadcast back to the phone for local history storage
 - Local-first, no-auth flow
 
 ## Analysis Rules Ported to PC
@@ -48,7 +48,7 @@ Included rules:
 ```text
 Steply-Web/
 ├─ server.js
-├─ src/                         # Node API, QR session, WebSocket, history
+├─ src/                         # Node API, QR session, WebSocket, ephemeral session cache
 ├─ public/models/               # fallback model asset for Node static server
 ├─ client/
 │  ├─ index.html
@@ -68,7 +68,6 @@ Steply-Web/
 │     │  └─ recommendationRules.js
 │     ├─ styles/
 │     └─ utils/
-├─ data/history.json
 └─ docs/PC_MEDIAPIPE_ANALYSIS_ARCHITECTURE.md
 ```
 
@@ -125,47 +124,6 @@ The MediaPipe WASM runtime is loaded by `@mediapipe/tasks-vision`. The worker cu
 const DEFAULT_WASM_PATH = '/wasm';
 ```
 
-## Movement State Classifier
-
-Steply also includes an MVP RandomForest movement-state classifier as an additional signal on top of the existing MediaPipe rules.
-
-- Model artifact: `models/randomforest_landmark_classifier.joblib`
-- Inference module: `steply_ai/movement_state_classifier.py`
-- API bridge: `POST /api/predict_movement_state`
-- Supported labels: `Walking`, `Standing`, `Sitting`
-- Expected input: a sequence of MediaPipe Pose frames, where each frame contains 33 landmarks with `x`, `y`, and `visibility`
-
-Example request:
-
-```json
-{
-  "landmarks": [
-    [
-      { "x": 0.1, "y": 0.2, "visibility": 0.99 }
-    ]
-  ]
-}
-```
-
-The browser Worker reuses the existing MediaPipe PoseLandmarker output and sends recent landmark sequences to the local Node API. The API calls the Python classifier, which loads the joblib payload and builds the feature vector in the exact `feature_cols` order stored in the model.
-
-The result is exposed as an estimated AI movement state:
-
-```json
-{
-  "label": "Standing",
-  "label_id": 1,
-  "confidence": 0.92,
-  "probabilities": {
-    "Walking": 0.03,
-    "Standing": 0.92,
-    "Sitting": 0.05
-  }
-}
-```
-
-Known limitation: this classifier was trained on UP-Fall Camera2 frontal-view data from a controlled environment, not real older-adult care-center data. Treat it as an MVP/demo classifier and validate further before using it for real-world decisions. Do not present the controlled-split score as real-world accuracy.
-
 ## Mobile Integration Flow
 
 1. PC Web creates a QR session.
@@ -176,7 +134,8 @@ Known limitation: this classifier was trained on UP-Fall Camera2 frontal-view da
 6. PC Worker extracts MediaPipe keypoints from the frames.
 7. PC Worker runs Chair Stand/posture rules in the background.
 8. PC UI displays skeleton, count, warnings, and final result.
-9. Final result is saved through `/api/analysis/final` into `data/history.json`.
+9. Final result is broadcast to the phone; the phone is the persistent history source.
+10. When the phone ends or disconnects the session, PC Web clears its in-memory session cache.
 
 ## If Port 3000 Is Already Used
 

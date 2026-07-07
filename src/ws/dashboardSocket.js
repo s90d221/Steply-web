@@ -3,6 +3,7 @@ const { WebSocketServer } = require('ws');
 const DASHBOARD_ROLES = new Set(['dashboard', 'unknown']);
 const { getSession, hasSession, getOrCreateSocketSet, removeSocket, broadcast } = require('../services/sessionStore');
 const { publicSession } = require('../services/sessionPresenter');
+const { cleanupSessionPersonalData } = require('../services/sessionService');
 
 function normalizeFrameDataUrl(frame, mimeType = 'image/jpeg') {
   if (typeof frame !== 'string') return '';
@@ -10,6 +11,12 @@ function normalizeFrameDataUrl(frame, mimeType = 'image/jpeg') {
   if (!value) return '';
   if (value.startsWith('data:')) return value;
   return `data:${mimeType || 'image/jpeg'};base64,${value}`;
+}
+
+function canMobileStream(session) {
+  if (!session) return false;
+  if (session.expiresAtEpochMs && session.expiresAtEpochMs <= Date.now()) return false;
+  return Boolean(session.connectedAt && session.pairingTokenConsumedAt);
 }
 
 function attachDashboardWebSocket(server) {
@@ -26,11 +33,21 @@ function attachDashboardWebSocket(server) {
       return;
     }
 
+    const session = getSession(sessionId);
+    if (role === 'mobile' && !canMobileStream(session)) {
+      socket.send(JSON.stringify({
+        type: 'error',
+        error: 'Mobile camera WebSocket requires a completed QR profile connection.',
+      }));
+      socket.close();
+      return;
+    }
+
     socket.sessionId = sessionId;
     socket.role = role;
     getOrCreateSocketSet(sessionId).add(socket);
 
-    socket.send(JSON.stringify({ type: 'session', session: publicSession(getSession(sessionId)) }));
+    socket.send(JSON.stringify({ type: 'session', session: publicSession(session) }));
     broadcast(sessionId, {
       type: 'remote-camera-status',
       role,
@@ -42,6 +59,10 @@ function attachDashboardWebSocket(server) {
     socket.on('message', (raw, isBinary) => {
       if (isBinary) {
         if (socket.role !== 'mobile') return;
+        if (!canMobileStream(getSession(sessionId))) {
+          socket.close(1000, 'Session personal data was cleared');
+          return;
+        }
         const buffer = Buffer.isBuffer(raw) ? raw : Buffer.from(raw);
         const receivedAt = Date.now();
         socket.frameSequence = (socket.frameSequence || 0) + 1;
@@ -120,6 +141,7 @@ function attachDashboardWebSocket(server) {
     socket.on('close', () => {
       removeSocket(sessionId, socket);
       if (role === 'mobile') {
+        cleanupSessionPersonalData(sessionId, 'mobile-websocket-closed');
         broadcast(sessionId, {
           type: 'remote-camera-status',
           role: 'mobile',

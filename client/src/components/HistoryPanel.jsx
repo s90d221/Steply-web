@@ -1,49 +1,219 @@
-import { EmptyStateCard, MetricCard, SteplyCard, StatusPill } from './SteplyPrimitives';
-import { formatDate, roundMetric, statusFromScore } from '../utils/format';
+import {
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
+import { EmptyStateCard, MetricCard, SteplyCard } from './SteplyPrimitives';
+import {
+  HistoryChallengeTypes,
+  buildChallengeTrendSeries,
+  latestMetric,
+  trendDelta,
+} from '../utils/historyTrends';
 
-export function HistoryPanel({ historyItems }) {
+function formatNumber(value, digits = 1) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return '-';
+  return number.toFixed(digits).replace(/\.0+$/, '');
+}
+
+function signed(value, suffix = '') {
+  if (!Number.isFinite(value)) return '-';
+  const rounded = Math.abs(value) >= 10 ? Math.round(value) : Math.round(value * 10) / 10;
+  return `${value >= 0 ? '+' : ''}${rounded}${suffix}`;
+}
+
+function ImprovementBadge({ value, suffix = '', lowerIsBetter = false }) {
+  const improved = Number.isFinite(value) && value > 0;
+  const label = improved ? 'Improved' : lowerIsBetter ? 'Sway easing' : 'Building baseline';
+  return (
+    <span className={improved ? 'trend-improvement trend-improvement--up' : 'trend-improvement'}>
+      {label} {signed(value, suffix)}
+    </span>
+  );
+}
+
+function ChartTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="history-chart-tooltip">
+      <strong>{label}</strong>
+      {payload.map((entry) => (
+        <span key={entry.dataKey} style={{ color: entry.color }}>
+          {entry.name}: {formatNumber(entry.value, entry.dataKey === 'swayIndex' ? 2 : 1)}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function TrendCard({ title, description, points, children, summary }) {
+  return (
+    <SteplyCard className="history-trend-card">
+      <div className="history-trend-card__header">
+        <div>
+          <div className="eyebrow">Last 5 Sessions</div>
+          <h3>{title}</h3>
+          <p>{description}</p>
+        </div>
+        {summary}
+      </div>
+      {points.length < 2 ? (
+        <div className="history-chart-empty">Two or more sessions are needed to draw a trend.</div>
+      ) : (
+        <div className="history-chart-frame">
+          {children}
+        </div>
+      )}
+    </SteplyCard>
+  );
+}
+
+function ChairStandTrend({ points }) {
+  const latestReps = latestMetric(points, 'repetitions');
+  const delta = trendDelta(points, 'repetitions');
+  return (
+    <TrendCard
+      title="30 sec Chair Stand"
+      description="Repeated sit-to-stand counts across the most recent sessions."
+      points={points}
+      summary={(
+        <div className="history-trend-summary">
+          <strong>{latestReps ?? '-'}</strong>
+          <ImprovementBadge value={delta} suffix=" reps" />
+        </div>
+      )}
+    >
+      <ResponsiveContainer width="100%" height={260}>
+        <LineChart data={points} margin={{ top: 18, right: 22, left: 0, bottom: 8 }}>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+          <XAxis dataKey="sessionLabel" tickLine={false} axisLine={false} tick={{ fontSize: 18, fontWeight: 800 }} />
+          <YAxis width={48} allowDecimals={false} tickLine={false} axisLine={false} tick={{ fontSize: 18, fontWeight: 800 }} />
+          <Tooltip content={<ChartTooltip />} labelFormatter={(_, payload) => payload?.[0]?.payload?.dateLabel || ''} />
+          <Legend verticalAlign="top" height={28} />
+          <Line
+            type="monotone"
+            dataKey="repetitions"
+            name="Reps"
+            stroke="var(--primary)"
+            strokeWidth={4}
+            dot={{ r: 5 }}
+            activeDot={{ r: 7 }}
+            connectNulls
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </TrendCard>
+  );
+}
+
+function BalanceTrend({ points }) {
+  const latestHold = latestMetric(points, 'holdSeconds');
+  const holdDelta = trendDelta(points, 'holdSeconds');
+  const swayDelta = trendDelta(points, 'swayIndex', { lowerIsBetter: true });
+  return (
+    <TrendCard
+      title="4-Stage Balance"
+      description="Tandem hold time and side-to-side sway from repeated balance checks."
+      points={points}
+      summary={(
+        <div className="history-trend-summary">
+          <strong>{latestHold !== null ? `${formatNumber(latestHold, 1)}s` : '-'}</strong>
+          <ImprovementBadge value={holdDelta} suffix="s" />
+          <ImprovementBadge value={swayDelta} lowerIsBetter suffix=" sway" />
+        </div>
+      )}
+    >
+      <ResponsiveContainer width="100%" height={260}>
+        <LineChart data={points} margin={{ top: 18, right: 4, left: 0, bottom: 8 }}>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} />
+          <XAxis dataKey="sessionLabel" tickLine={false} axisLine={false} tick={{ fontSize: 18, fontWeight: 800 }} />
+          <YAxis yAxisId="hold" width={48} tickLine={false} axisLine={false} tick={{ fontSize: 18, fontWeight: 800 }} />
+          <YAxis yAxisId="sway" orientation="right" width={54} tickLine={false} axisLine={false} tick={{ fontSize: 18, fontWeight: 800 }} />
+          <Tooltip content={<ChartTooltip />} labelFormatter={(_, payload) => payload?.[0]?.payload?.dateLabel || ''} />
+          <Legend verticalAlign="top" height={28} />
+          <Line
+            yAxisId="hold"
+            type="monotone"
+            dataKey="holdSeconds"
+            name="Hold seconds"
+            stroke="var(--primary)"
+            strokeWidth={4}
+            dot={{ r: 5 }}
+            activeDot={{ r: 7 }}
+            connectNulls
+          />
+          <Line
+            yAxisId="sway"
+            type="monotone"
+            dataKey="swayIndex"
+            name="Sway"
+            stroke="var(--tertiary)"
+            strokeWidth={3}
+            dot={{ r: 4 }}
+            activeDot={{ r: 6 }}
+            connectNulls
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </TrendCard>
+  );
+}
+
+export function HistoryPanel({ historyItems, historySource }) {
   const items = historyItems || [];
-  const latest = items[0];
-  const scores = items.map((item) => Number(item.score)).filter(Number.isFinite);
-  const best = scores.length ? Math.max(...scores) : 0;
-  const average = scores.length ? Math.round(scores.reduce((sum, value) => sum + value, 0) / scores.length) : 0;
+  const chairStandPoints = buildChallengeTrendSeries(items, HistoryChallengeTypes.ChairStand);
+  const balancePoints = buildChallengeTrendSeries(items, HistoryChallengeTypes.FourStageBalance);
+  const latestChairReps = latestMetric(chairStandPoints, 'repetitions');
+  const latestBalanceHold = latestMetric(balancePoints, 'holdSeconds');
+  const totalPlotted = chairStandPoints.length + balancePoints.length;
 
   return (
-    <div className="history-panel">
+    <div className="history-panel distance-mode distance-mode--history">
       <div className="metric-row">
-        <MetricCard value={latest ? roundMetric(latest.score) : '-'} label="Latest" detail={latest ? formatDate(latest.receivedAt || latest.createdAt) : 'No result yet'} />
-        <MetricCard value={best || '-'} label="Best" detail="Highest saved score" accent />
-        <MetricCard value={average || '-'} label="Average" detail="Saved sessions" />
+        <MetricCard value={totalPlotted || '-'} label="Sessions Charted" detail="Most recent movement records" />
+        <MetricCard value={latestChairReps ?? '-'} label="Latest Chair Stands" detail="30-second count" accent />
+        <MetricCard value={latestBalanceHold !== null ? `${formatNumber(latestBalanceHold, 1)}s` : '-'} label="Latest Tandem Hold" detail="4-stage balance" />
       </div>
 
       <SteplyCard className="trend-card" tone="sand">
-        <div className="eyebrow">Friendly Trend</div>
-        <h3>{items.length ? 'Keep building steady habits' : 'History will appear here'}</h3>
-        <p>{items.length ? 'Reviewing movement over time helps make practice feel safer and more encouraging.' : 'Save a final result to start a local progress history.'}</p>
+        <div className="eyebrow">Progress Tracking</div>
+        <h3>{items.length ? 'Your last five sessions are easy to compare' : 'Progress will appear here'}</h3>
+        <p>
+          {items.length
+            ? 'Steply shows movement history supplied by the phone profile so changes are easier to notice over time.'
+            : 'When the phone app sends movement history, this screen will show recent trends for balance and exercise completion.'}
+        </p>
+        {historySource ? (
+          <p className="history-source-note">
+            Source: {historySource.label || historySource.type}
+            {historySource.persistent ? '' : ' · display only'}
+          </p>
+        ) : null}
       </SteplyCard>
 
       {items.length === 0 ? (
-        <EmptyStateCard title="No saved results yet" message="Complete a movement check and save the final result to see progress cards here." />
+        <EmptyStateCard title="No movement history yet" message="Complete a mission on the phone profile to begin tracking your last five sessions." />
       ) : (
-        <div className="history-list">
-          {items.slice(0, 8).map((item) => {
-            const score = roundMetric(item.score);
-            const status = statusFromScore(score);
-            return (
-              <SteplyCard className="history-item" key={item.id || `${item.sessionId}-${item.receivedAt}`}>
-                <div>
-                  <div className="eyebrow">{formatDate(item.receivedAt || item.createdAt)}</div>
-                  <h3>{item.selectedTest || item.testType || 'Movement Check'}</h3>
-                  <p>{item.message || 'Saved movement result from Steply dashboard.'}</p>
-                </div>
-                <div className="history-item__score">
-                  <strong>{score}</strong>
-                  <StatusPill status={status} />
-                </div>
-              </SteplyCard>
-            );
-          })}
-        </div>
+        <>
+          <div className="history-chart-grid">
+            <BalanceTrend points={balancePoints} />
+            <ChairStandTrend points={chairStandPoints} />
+          </div>
+          <SteplyCard className="history-achievement-card">
+            <div className="history-achievement-card__icon">✓</div>
+            <div>
+              <div className="eyebrow">Achievement</div>
+              <h3>Safe Steps Badge</h3>
+              <p>Small sessions add up. Keep building steady practice over time.</p>
+            </div>
+          </SteplyCard>
+        </>
       )}
     </div>
   );

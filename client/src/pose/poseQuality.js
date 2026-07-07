@@ -19,13 +19,6 @@ const COMMON_REQUIRED_LANDMARKS = [
   PoseLandmarks.RightAnkle,
 ];
 
-const TUG_EXTRA_LANDMARKS = [
-  PoseLandmarks.LeftHeel,
-  PoseLandmarks.RightHeel,
-  PoseLandmarks.LeftFootIndex,
-  PoseLandmarks.RightFootIndex,
-];
-
 const LOWER_BODY_LANDMARKS = [
   PoseLandmarks.LeftKnee,
   PoseLandmarks.RightKnee,
@@ -44,9 +37,6 @@ function visibilityOf(point, fallback = 0) {
 }
 
 function requiredLandmarksFor(testType) {
-  if (testType === 'tug' || testType === 'tug_walk') {
-    return [...COMMON_REQUIRED_LANDMARKS, ...TUG_EXTRA_LANDMARKS];
-  }
   return COMMON_REQUIRED_LANDMARKS;
 }
 

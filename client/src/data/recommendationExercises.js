@@ -4,7 +4,7 @@ export const recommendationExercises = [
     title: 'Supported Chair Stand',
     description: 'Stand up and sit down slowly while keeping a stable chair behind you.',
     minutes: '5',
-    type: 'HG',
+    type: '10 reps',
     safety: 'Keep both feet flat and move without rushing.',
   },
   {
@@ -12,7 +12,7 @@ export const recommendationExercises = [
     title: 'Gentle Weight Shift',
     description: 'Hold the back of a chair and shift weight left and right at a relaxed pace.',
     minutes: '4',
-    type: 'Balance',
+    type: 'Guided',
     completed: true,
     safety: 'Stop if you feel dizzy or unstable.',
   },
@@ -21,7 +21,7 @@ export const recommendationExercises = [
     title: 'Standing Hold',
     description: 'Stand comfortably while holding a chair and keep your posture tall.',
     minutes: '3',
-    type: 'Posture',
+    type: 'Hold',
     safety: 'Use support and keep the area clear.',
   },
 ];

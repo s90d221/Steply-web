@@ -25,10 +25,11 @@ export function createSession() {
   return requestJson('/api/session/create', { method: 'POST', body: '{}' });
 }
 
-export function connectProfile(sessionId, profile) {
+export function connectProfile(sessionId, profile, pairingToken = '') {
   return requestJson(`/api/session/${sessionId}/connect`, {
     method: 'POST',
-    body: JSON.stringify({ profile }),
+    headers: pairingToken ? { 'X-Steply-Pairing-Token': pairingToken } : {},
+    body: JSON.stringify({ sessionId, pairingToken, profile }),
   });
 }
 
@@ -57,6 +58,8 @@ export function postFinalAnalysis(payload) {
   });
 }
 
+// Development display adapter only. Per the 4.6/6.0 data boundary, the phone app
+// is the permanent owner of personal history; the web client only renders injected items.
 export function getAllHistory() {
   return requestJson('/api/history');
 }

@@ -2,58 +2,405 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 18px;
+  gap: var(--distance-gap);
   background: var(--tertiary-container);
   border-color: color-mix(in srgb, var(--tertiary) 26%, var(--outline));
 }
-.recommendation-header h2 { font-size: clamp(24px, 3vw, 32px); font-weight: 800; }
-.recommendation-header p { max-width: 620px; font-size: 15px; }
+.recommendation-header h2 {
+  max-width: 840px;
+  font-size: var(--distance-font-title);
+  font-weight: 800;
+}
+.recommendation-header p {
+  max-width: 860px;
+  color: var(--distance-contrast-text);
+  font-size: var(--distance-font-body);
+  font-weight: 700;
+}
 
 .recommendation-time {
   flex: 0 0 auto;
-  padding: 12px 16px;
+  padding: 18px 22px;
   border-radius: var(--radius-button);
   background: var(--surface);
   color: var(--tertiary);
-  font-size: 15px;
+  font-size: var(--distance-font-small);
   font-weight: 700;
 }
-.recommendation-time strong { font-size: 28px; letter-spacing: 0; }
+.recommendation-time strong { font-size: 54px; letter-spacing: 0; }
+
+.ar-game {
+  display: grid;
+  gap: var(--distance-gap);
+  padding: var(--distance-panel-padding);
+  border: 1px solid var(--outline);
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+.ar-game__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.ar-game__header h3 {
+  font-size: 40px;
+  font-weight: 800;
+}
+
+.ar-game__counter {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  min-width: 168px;
+  padding: 14px 18px;
+  border-radius: var(--radius-button);
+  color: var(--primary);
+  background: var(--primary-container);
+  font-weight: 800;
+}
+
+.ar-game__counter span {
+  font-size: 66px;
+  line-height: 1;
+}
+
+.ar-game__counter small {
+  font-size: 26px;
+}
+
+.ar-game__counter--complete {
+  color: var(--on-primary);
+  background: var(--primary);
+}
+
+.ar-game-tabs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.ar-game-tab {
+  min-height: 64px;
+  padding: 12px 14px;
+  border: 1px solid var(--outline);
+  border-radius: var(--radius-button);
+  background: var(--surface-variant);
+  color: var(--text-primary);
+  font-size: var(--distance-font-small);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.ar-game-tab--active {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-container);
+}
+
+.ar-game-stage {
+  position: relative;
+  width: 100%;
+  height: clamp(420px, 42vw, 560px);
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--outline);
+  border-radius: var(--radius-card);
+  background:
+    linear-gradient(color-mix(in srgb, var(--primary) 10%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--primary) 10%, transparent) 1px, transparent 1px),
+    var(--surface-variant);
+  background-size: 42px 42px;
+}
+
+.ar-game-camera-frame,
+.ar-game-camera-placeholder {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.ar-game-camera-frame {
+  object-fit: cover;
+}
+
+.ar-game-camera-placeholder {
+  background:
+    linear-gradient(color-mix(in srgb, var(--secondary) 14%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--secondary) 14%, transparent) 1px, transparent 1px),
+    var(--surface-variant);
+  background-size: 44px 44px;
+}
+
+.ar-game-stage .pose-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  color: var(--primary);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.ar-game-object,
+.ar-game-target-ring {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.ar-game-target-ring {
+  z-index: 3;
+  width: 138px;
+  height: 138px;
+  border: 5px solid color-mix(in srgb, var(--primary) 72%, white);
+  border-radius: 999px;
+  opacity: 0.72;
+}
+
+.ar-game-object {
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  width: 118px;
+  height: 118px;
+  line-height: 1;
+  font-size: 92px;
+  font-weight: 900;
+  filter: drop-shadow(0 12px 18px rgba(0, 0, 0, 0.32));
+  transition: left 80ms linear, top 80ms linear, transform 80ms linear;
+}
+
+.ar-game-object--bubble {
+  border: 6px solid color-mix(in srgb, var(--primary) 65%, white);
+  border-radius: 999px;
+  color: transparent;
+  background: color-mix(in srgb, var(--primary-container) 72%, transparent);
+  box-shadow: inset -12px -16px 20px rgba(255, 255, 255, 0.45);
+}
+
+.ar-game-demo-path {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.ar-game-demo-path span {
+  position: absolute;
+  display: block;
+  width: 54px;
+  height: 54px;
+  border: 3px solid color-mix(in srgb, var(--primary) 48%, white);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--primary-container) 56%, transparent);
+  opacity: 0.58;
+}
+
+.ar-game-demo-path span:nth-child(1) {
+  left: 42%;
+  top: 46%;
+}
+
+.ar-game-demo-path span:nth-child(2) {
+  left: 50%;
+  top: 34%;
+}
+
+.ar-game-demo-path span:nth-child(3) {
+  left: 56%;
+  top: 26%;
+}
+
+.ar-game-object--star {
+  color: #f7b500;
+  text-shadow: 0 4px 0 #8a5c00;
+}
+
+.ar-game-object--butterfly {
+  width: 146px;
+  height: 118px;
+}
+
+.ar-game-butterfly {
+  display: grid;
+  grid-template-columns: 1fr 12px 1fr;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+}
+
+.ar-game-butterfly__wing {
+  width: 64px;
+  height: 84px;
+  border-radius: 38px 38px 20px 38px;
+  background: var(--secondary);
+  transform-origin: center right;
+  animation: butterflyWing 650ms ease-in-out infinite;
+}
+
+.ar-game-butterfly__wing--right {
+  transform-origin: center left;
+  border-radius: 38px 38px 38px 20px;
+  background: var(--tertiary);
+  animation-delay: 120ms;
+}
+
+.ar-game-butterfly__body {
+  width: 16px;
+  height: 82px;
+  border-radius: 999px;
+  background: var(--text-primary);
+}
+
+@keyframes butterflyWing {
+  0%,
+  100% { transform: scaleX(0.86); }
+  50% { transform: scaleX(1.08); }
+}
+
+.ar-game-object--burst {
+  animation: arGameBurst 420ms ease-out;
+}
+
+@keyframes arGameBurst {
+  0% { transform: translate(-50%, -50%) scale(0.8); }
+  45% { transform: translate(-50%, -50%) scale(1.28); }
+  100% { transform: translate(-50%, -50%) scale(1); }
+}
+
+.ar-game__footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 16px;
+  align-items: center;
+}
+
+.ar-game-progress {
+  grid-column: 1 / -1;
+  height: 28px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-variant);
+}
+
+.ar-game-progress span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--primary);
+  transition: width 80ms linear;
+}
+
+.ar-game__status {
+  display: flex;
+  align-items: baseline;
+  gap: 18px;
+  min-height: 92px;
+  padding: 16px 20px;
+  border-radius: var(--radius-card);
+  background: var(--primary-container);
+  min-width: 0;
+  color: var(--distance-contrast-text);
+  font-weight: 700;
+}
+
+.ar-game__status strong {
+  color: var(--primary);
+  font-size: 56px;
+  line-height: 1;
+}
+
+.ar-game__status span {
+  font-size: 30px;
+  line-height: 1.22;
+}
+
+.ar-game-achievement {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  gap: 10px 12px;
+  align-items: center;
+  min-width: 250px;
+  min-height: 92px;
+  padding: 14px 16px;
+  border: 2px solid color-mix(in srgb, var(--tertiary) 28%, var(--outline));
+  border-radius: var(--radius-card);
+  background: var(--distance-warning-bg);
+}
+
+.ar-game-achievement span {
+  grid-row: span 2;
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 54px;
+  color: var(--on-primary);
+  background: var(--primary);
+  border-radius: 50%;
+  font-size: 30px;
+  font-weight: 900;
+}
+
+.ar-game-achievement strong {
+  color: var(--distance-contrast-text);
+  font-size: 22px;
+  line-height: 1.1;
+}
+
+.ar-game-achievement small {
+  color: var(--distance-contrast-muted);
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.ar-game-achievement--complete {
+  background: var(--distance-success-bg);
+  border-color: color-mix(in srgb, var(--primary) 34%, var(--outline));
+}
+
+.ar-game__reset {
+  justify-self: end;
+}
 
 .exercise-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  gap: var(--distance-gap);
 }
 
 .exercise-card {
   display: grid;
-  gap: 12px;
-  min-height: 260px;
+  gap: 16px;
+  min-height: 320px;
 }
 .exercise-card--complete { background: var(--primary-container); }
 .exercise-card__topline { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .exercise-card__number {
   display: grid;
   place-items: center;
-  width: 42px;
-  height: 42px;
+  width: 58px;
+  height: 58px;
   border-radius: 999px;
   color: var(--on-primary);
   background: var(--primary);
   font-weight: 800;
+  font-size: 24px;
 }
 .exercise-card__chip {
-  padding: 7px 10px;
+  padding: 10px 14px;
   border-radius: 999px;
   background: var(--secondary-container);
   color: var(--secondary);
   font-weight: 700;
-  font-size: 13px;
+  font-size: 20px;
 }
-.exercise-card h3 { font-size: 20px; font-weight: 700; }
-.exercise-card p { font-size: 15px; }
+.exercise-card h3 { font-size: 28px; font-weight: 800; }
+.exercise-card p { font-size: var(--distance-font-small); font-weight: 700; }
 .exercise-card__meta {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -65,6 +412,7 @@
   background: var(--surface-variant);
   color: var(--primary);
   font-weight: 700;
+  font-size: var(--distance-font-small);
 }
 .exercise-card__safety {
   align-self: end;
@@ -72,7 +420,7 @@
   border-radius: var(--radius-notice);
   background: var(--tertiary-container);
   color: var(--tertiary);
-  font-size: 15px;
+  font-size: var(--distance-font-small);
   font-weight: 600;
 }
-.wide-cta { max-width: 480px; justify-self: center; }
+.wide-cta { max-width: 620px; justify-self: center; }

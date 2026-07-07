@@ -1,6 +1,37 @@
 export const journeySteps = [
-  { id: 'start', number: 0, title: 'Start', description: "Choose today's mission" },
-  { id: 'analysis', number: 1, title: 'Analyze', description: 'Follow the live movement coach' },
-  { id: 'result', number: 2, title: 'Result', description: 'Review posture feedback' },
-  { id: 'exercise', number: 3, title: 'Exercise', description: 'Begin recommended practice' },
+  {
+    id: 'assessment',
+    number: 1,
+    title: 'Assessment',
+    description: 'Camera setup and balance mission',
+    activeWhen: ['start', 'analysis'],
+  },
+  {
+    id: 'weakness',
+    number: 2,
+    title: 'Weakness Analysis',
+    description: 'Supportive movement insight',
+    activeWhen: ['result'],
+  },
+  {
+    id: 'recommendation',
+    number: 3,
+    title: 'Exercise Recommendation',
+    description: 'Safe next exercise',
+    activeWhen: ['result'],
+  },
+  {
+    id: 'game',
+    number: 4,
+    title: 'Gamified Repetition',
+    description: 'Guided exercise game',
+    activeWhen: ['exercise'],
+  },
+  {
+    id: 'progress',
+    number: 5,
+    title: 'Progress Tracking',
+    description: 'Last five sessions',
+    activeWhen: ['progress', 'start'],
+  },
 ];

@@ -1,19 +1,20 @@
 import { FilesetResolver, PoseLandmarker } from '@mediapipe/tasks-vision';
 import { MediaPipePoseNames } from './poseLandmarks';
 import { createMovementAnalyzer } from './movementAnalyzers';
+import { PoseLandmarkSeries, normalizePoseLandmarks } from './poseTimeSeries';
 import wasmModuleLoaderUrl from '../vendor/mediapipe/wasm/vision_wasm_module_internal.js?url';
 import wasmModuleBinaryUrl from '../vendor/mediapipe/wasm/vision_wasm_module_internal.wasm?url';
 
 const DEFAULT_MODEL_PATH = '/models/pose_landmarker_lite.task';
 const DEFAULT_WASM_PATH = '/wasm';
 const MIN_FRAME_INTERVAL_MS = 95;
-const MOVEMENT_STATE_MIN_FRAMES = 6;
-const MOVEMENT_STATE_SAMPLE_LIMIT = 80;
-const MOVEMENT_STATE_INTERVAL_MS = 1200;
+const PROCESSING_TELEMETRY_SAMPLE_LIMIT = 60;
+const PROCESSING_TELEMETRY_REPORT_INTERVAL = 20;
 
 let landmarker = null;
 let selectedTest = 'chair_stand';
 let analyzer = createMovementAnalyzer(selectedTest);
+let steadiLandmarkSeries = new PoseLandmarkSeries();
 let initialized = false;
 let initializing = null;
 let session = null;
@@ -22,10 +23,8 @@ let latestAnalyzeAt = 0;
 let latestMediaPipeTimestampMs = 0;
 let frameSequence = 0;
 let isAnalyzingFrame = false;
-let landmarkSequence = [];
-let latestMovementState = null;
-let latestMovementStateRequestAt = 0;
-let movementStateRequestInFlight = false;
+let processedFrameWallTimes = [];
+let inferenceDurationsMs = [];
 
 function normalizeBasePath(path) {
   return String(path || '').replace(/\/$/, '');
@@ -141,13 +140,13 @@ async function initLandmarker(config = {}) {
             modelAssetPath: config.modelAssetPath || DEFAULT_MODEL_PATH,
             delegate,
           },
-          runningMode: 'IMAGE',
+          runningMode: 'VIDEO',
           numPoses: 1,
           minPoseDetectionConfidence: 0.5,
           minPosePresenceConfidence: 0.5,
           minTrackingConfidence: 0.5,
         });
-        debug('landmarker-delegate-ready', { delegate });
+        debug('landmarker-delegate-ready', { delegate, runningMode: 'VIDEO' });
         break;
       } catch (error) {
         lastError = error;
@@ -196,85 +195,50 @@ function nextMediaPipeTimestampMs(candidateTimestampMs) {
 }
 
 function normalizeLandmarks(rawLandmarks = []) {
-  return rawLandmarks.map((landmark, index) => ({
+  return normalizePoseLandmarks(rawLandmarks.map((landmark, index) => ({
     name: MediaPipePoseNames[index] || `landmark_${index}`,
     x: landmark.x,
     y: landmark.y,
     z: landmark.z,
-    visibility: Number.isFinite(landmark.visibility) ? landmark.visibility : null,
-  }));
+    visibility: Number.isFinite(landmark.visibility) ? landmark.visibility : 0,
+  })));
 }
 
-function landmarksForClassifier(landmarks) {
-  return landmarks.map((point) => ({
-    x: point.x,
-    y: point.y,
-    visibility: Number.isFinite(point.visibility) ? point.visibility : 1,
-  }));
+function resetProcessingTelemetry() {
+  processedFrameWallTimes = [];
+  inferenceDurationsMs = [];
 }
 
-function rememberLandmarkFrame(landmarks) {
-  if (!landmarks?.length) return;
-  landmarkSequence.push(landmarksForClassifier(landmarks));
-  while (landmarkSequence.length > MOVEMENT_STATE_SAMPLE_LIMIT) landmarkSequence.shift();
+function average(values = []) {
+  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
 }
 
-function stateWithMovementState(state) {
-  if (!latestMovementState) return state;
-  const label = String(latestMovementState.label || '').toLowerCase();
-  const confidence = Number(latestMovementState.confidence || 0);
-  const signal = {
-    isStandingReady: label === 'standing' && confidence >= 0.55,
-    isSeated: label === 'sitting' && confidence >= 0.55,
-    isWalking: label === 'walking' && confidence >= 0.55,
-  };
-  return {
-    ...state,
-    movementState: latestMovementState,
-    movementStateSignal: signal,
-    phase: selectedTest === 'tug' && signal.isWalking ? 'walking' : state.phase,
-  };
-}
+function recordProcessingTelemetry({ analyzedAt, inferenceDurationMs }) {
+  processedFrameWallTimes.push(analyzedAt);
+  inferenceDurationsMs.push(inferenceDurationMs);
+  while (processedFrameWallTimes.length > PROCESSING_TELEMETRY_SAMPLE_LIMIT) processedFrameWallTimes.shift();
+  while (inferenceDurationsMs.length > PROCESSING_TELEMETRY_SAMPLE_LIMIT) inferenceDurationsMs.shift();
 
-async function maybePredictMovementState() {
-  const now = Date.now();
-  if (movementStateRequestInFlight) return;
-  if (landmarkSequence.length < MOVEMENT_STATE_MIN_FRAMES) return;
-  if (now - latestMovementStateRequestAt < MOVEMENT_STATE_INTERVAL_MS) return;
-
-  latestMovementStateRequestAt = now;
-  movementStateRequestInFlight = true;
-  const payload = {
-    landmarks: landmarkSequence.slice(-MOVEMENT_STATE_SAMPLE_LIMIT),
+  const firstWallTime = processedFrameWallTimes[0];
+  const latestWallTime = processedFrameWallTimes.at(-1);
+  const observedDurationMs = latestWallTime - firstWallTime;
+  const processedFps = observedDurationMs > 0
+    ? (processedFrameWallTimes.length - 1) * 1000 / observedDurationMs
+    : null;
+  const telemetry = {
+    processedFrameCount: processedFrameWallTimes.length,
+    processedFps,
+    averageInferenceMs: average(inferenceDurationsMs),
+    latestInferenceMs: inferenceDurationMs,
+    minFrameIntervalMs: MIN_FRAME_INTERVAL_MS,
+    configuredMaxFps: 1000 / MIN_FRAME_INTERVAL_MS,
   };
 
-  try {
-    const response = await fetch('/api/predict_movement_state', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || `HTTP ${response.status}`);
-    }
-    const prediction = await response.json();
-    latestMovementState = prediction;
-    debug('movement-state-predicted', {
-      label: prediction.label,
-      confidence: prediction.confidence,
-      framesUsed: prediction.frames_used,
-      detectionRate: prediction.detection_rate,
-      featureValues: prediction.feature_values,
-    });
-  } catch (error) {
-    debug('movement-state-prediction-failed', {
-      message: error.message || 'Movement state prediction failed.',
-      framesUsed: payload.landmarks.length,
-    });
-  } finally {
-    movementStateRequestInFlight = false;
+  if (frameSequence > 0 && frameSequence % PROCESSING_TELEMETRY_REPORT_INTERVAL === 0) {
+    debug('pose-processing-rate', telemetry);
   }
+
+  return telemetry;
 }
 
 async function imageBitmapFromFrame(frame) {
@@ -299,10 +263,14 @@ async function detectPoseFromFrame(message) {
   await initLandmarker(message.config || {});
   const bitmap = await imageBitmapFromFrame(message.frame);
   const timestampMs = nextMediaPipeTimestampMs(message.receivedAt || Date.now());
-  const result = landmarker.detect(bitmap);
+  const inferenceStartedAt = Date.now();
+  const result = landmarker.detectForVideo(bitmap, timestampMs);
+  const inferenceEndedAt = Date.now();
   const rawLandmarks = result.landmarks?.[0] || [];
   const landmarks = normalizeLandmarks(rawLandmarks);
-  const visibilityValues = landmarks.map((point) => point.visibility).filter((value) => Number.isFinite(value));
+  const visibilityValues = rawLandmarks
+    .map((point) => point.visibility)
+    .filter((value) => Number.isFinite(value));
   const confidence = visibilityValues.length
     ? visibilityValues.reduce((sum, value) => sum + value, 0) / visibilityValues.length
     : rawLandmarks.length ? 1 : 0;
@@ -312,6 +280,7 @@ async function detectPoseFromFrame(message) {
     timestampMs,
     landmarks,
     confidence,
+    inferenceDurationMs: inferenceEndedAt - inferenceStartedAt,
   };
 }
 
@@ -327,13 +296,14 @@ async function handlePreviewFrame(message) {
   try {
     const detected = await detectPoseFromFrame(message);
     bitmap = detected.bitmap;
+    const analyzedAt = Date.now();
     postMessage({
       type: 'preview-frame',
       landmarks: detected.landmarks,
       confidence: detected.confidence,
       frameSize: { width: bitmap.width, height: bitmap.height },
       receivedAt: detected.timestampMs,
-      analyzedAt: Date.now(),
+      analyzedAt,
     });
   } catch (error) {
     if (/Packet timestamp mismatch|WaitUntilIdle failed|CalculatorGraph::Run\(\) failed/.test(error.message || '')) {
@@ -365,23 +335,40 @@ async function handleFrame(message) {
     bitmap = detected.bitmap;
     const timestampMs = detected.timestampMs;
     const landmarks = detected.landmarks;
-    rememberLandmarkFrame(landmarks);
-    maybePredictMovementState();
     const confidence = detected.confidence;
-
-    const poseFrame = { timestampMs, landmarks, confidence };
-    const state = stateWithMovementState(analyzer.addFrame(poseFrame));
-    frameSequence += 1;
+    const nextSequence = frameSequence + 1;
+    const steadiFrame = steadiLandmarkSeries.push({
+      sequence: nextSequence,
+      timestampMs,
+      receivedAt: message.receivedAt || timestampMs,
+      landmarks,
+      confidence,
+    });
+    const poseFrame = {
+      timestampMs,
+      landmarks: steadiFrame.frame.landmarks,
+      confidence,
+      metrics: steadiFrame.metrics,
+      landmarkSeries: steadiFrame.series,
+    };
+    const state = analyzer.addFrame(poseFrame);
+    frameSequence = nextSequence;
+    const analyzedAt = Date.now();
+    const processing = recordProcessingTelemetry({
+      analyzedAt,
+      inferenceDurationMs: detected.inferenceDurationMs,
+    });
 
     postMessage({
       type: 'analysis-frame',
       sequence: frameSequence,
       state,
-      landmarks,
+      landmarks: poseFrame.landmarks,
       confidence,
       frameSize: { width: bitmap.width, height: bitmap.height },
       receivedAt: timestampMs,
-      analyzedAt: Date.now(),
+      analyzedAt,
+      processing,
     });
 
     if (session?.active && (state.elapsedSeconds || 0) >= (state.durationSeconds || 30)) {
@@ -419,11 +406,9 @@ function startSession(message) {
   };
   analyzer.startSession(session.userId, startedAt);
   frameSequence = 0;
-  landmarkSequence = [];
-  latestMovementState = null;
-  latestMovementStateRequestAt = 0;
-  movementStateRequestInFlight = false;
-  postMessage({ type: 'session-started', startedAt, state: stateWithMovementState(analyzer.getCurrentState(startedAt)) });
+  steadiLandmarkSeries.reset();
+  resetProcessingTelemetry();
+  postMessage({ type: 'session-started', startedAt, state: analyzer.getCurrentState(startedAt) });
 }
 
 function finishSession(message) {
@@ -431,10 +416,9 @@ function finishSession(message) {
   const completedAt = message.completedAt || Date.now();
   const result = {
     ...analyzer.finishSession(completedAt),
-    movementState: latestMovementState,
   };
   session = session ? { ...session, active: false, completedAt } : null;
-  postMessage({ type: 'session-finished', completedAt, result, state: stateWithMovementState(analyzer.getCurrentState(completedAt)) });
+  postMessage({ type: 'session-finished', completedAt, result, state: analyzer.getCurrentState(completedAt) });
 }
 
 function resetSession() {
@@ -444,12 +428,10 @@ function resetSession() {
   frameSequence = 0;
   latestFrameAt = 0;
   latestAnalyzeAt = 0;
-  landmarkSequence = [];
-  latestMovementState = null;
-  latestMovementStateRequestAt = 0;
+  steadiLandmarkSeries.reset();
   isAnalyzingFrame = false;
-  movementStateRequestInFlight = false;
-  postMessage({ type: 'session-reset', state: stateWithMovementState(analyzer.getCurrentState(Date.now())) });
+  resetProcessingTelemetry();
+  postMessage({ type: 'session-reset', state: analyzer.getCurrentState(Date.now()) });
 }
 
 self.onmessage = async (event) => {

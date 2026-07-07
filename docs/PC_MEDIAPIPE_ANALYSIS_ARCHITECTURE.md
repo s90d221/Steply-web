@@ -102,7 +102,7 @@ client/src/App.jsx
 - 프레임을 Worker에 전달
 - 실시간 분석 상태를 UI에 표시
 - keypoint skeleton overlay 표시
-- 결과 저장 버튼 클릭 시 `/api/analysis/final` 저장
+- 결과 확정 시 `/api/analysis/final`은 세션 메모리 캐시에만 임시 반영하고 모바일에 final 메시지를 전송
 
 ## 백그라운드 처리 방식
 
@@ -145,7 +145,7 @@ npm install
 1. 프레임을 React state에 base64로 저장하지 않고 `ObjectURL` 또는 `<canvas>` 직접 갱신으로 최적화
 2. Worker 입력 queue를 latest-frame-drop 방식으로 더 엄격하게 제한
 3. Electron/Tauri 패키징 후 `public/wasm`에 MediaPipe WASM을 포함해 완전 오프라인화
-4. Chair Stand 외 Balance Hold/TUG 규칙 추가
+4. Chair Stand 외 확정된 STEADI 범위 규칙 추가
 
 ## MediaPipe WASM loading note
 

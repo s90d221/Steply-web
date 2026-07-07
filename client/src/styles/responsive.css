@@ -45,12 +45,28 @@
   .journey-flow > .status-pill { grid-column: 1 / -1; }
   .hero-card { grid-template-columns: 1fr; }
   .metric-row, .test-grid, .exercise-grid { grid-template-columns: 1fr; }
-  .feedback-result-card { grid-template-columns: 1fr; }
+  .history-chart-grid { grid-template-columns: 1fr; }
+  .feedback-result-card,
+  .feedback-list { grid-template-columns: 1fr; }
   .result-actions { grid-template-columns: 1fr; }
   .recommendation-header { flex-direction: column; align-items: flex-start; }
+  .ar-game__footer { grid-template-columns: 1fr; }
+  .ar-game__reset { justify-self: stretch; }
+  .ar-game-achievement { width: 100%; }
+  .safety-step-badge,
+  .history-achievement-card { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 720px) {
+  :root {
+    --distance-font-kicker: 1rem;
+    --distance-font-small: 1.125rem;
+    --distance-font-body: 1.25rem;
+    --distance-font-title: 2rem;
+    --distance-font-display: 3.5rem;
+    --distance-panel-padding: 20px;
+    --distance-stage-min: 380px;
+  }
   .steply-shell, .steply-shell--focus { padding: 16px; }
   .session-rail { grid-template-columns: 1fr; }
   .top-bar h1 { font-size: 28px; }
@@ -64,18 +80,29 @@
   .arena-stage { min-height: 300px; }
   .analysis-test-tabs { grid-template-columns: 1fr; }
   .analysis-controls--guided { grid-template-columns: 1fr; width: 100%; }
+  .ar-game { padding: 12px; }
+  .ar-game__header { align-items: flex-start; flex-direction: column; }
+  .ar-game__counter { width: 100%; }
+  .ar-game-stage {
+    height: 380px;
+    min-height: 0;
+  }
+  .ar-game-object { width: 84px; height: 84px; font-size: 64px; }
+  .ar-game-target-ring { width: 104px; height: 104px; }
+  .ar-game__status { align-items: flex-start; flex-direction: column; gap: 4px; }
   .guided-camera-message {
     width: calc(100% - 32px);
-    padding: 14px 16px;
+    padding: 16px 18px;
   }
-  .guided-camera-message strong { font-size: 15px; }
+  .guided-camera-message strong { font-size: 24px; }
+  .guided-camera-message p { font-size: 18px; }
   .coach-figure { transform: translate(-50%, -50%) scale(0.85); }
   @keyframes gentleCoachPulse {
     0%, 100% { transform: translate(-50%, -50%) scale(0.85); }
     50% { transform: translate(-50%, -53%) scale(0.87); }
   }
-  .history-item { align-items: flex-start; flex-direction: column; }
-  .history-item__score { justify-items: start; }
+  .history-trend-card__header { flex-direction: column; }
+  .history-trend-summary { justify-items: start; width: 100%; }
   .profile-facts { grid-template-columns: 1fr; }
 }
 

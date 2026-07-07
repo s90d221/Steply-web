@@ -10,9 +10,10 @@ import {
   selectTest,
 } from '../api/steplyApi';
 import { buildRealtimePayload } from '../data/demoAnalysis';
+import { buildDemoHistoryItems } from '../data/demoHistory';
 import { demoProfile } from '../data/demoProfile';
 import { useRemotePoseAnalysis } from './useRemotePoseAnalysis';
-import { recommendationLabel, recommendationTemplatesForLevel, resultFlagsFor, testLabel } from '../pose/recommendationRules';
+import { recommendationLabel, recommendationTemplatesForResult, resultFlagsFor, testLabel } from '../pose/recommendationRules';
 
 function normalizeFrameSource(frame, mimeType = 'image/jpeg') {
   if (typeof frame !== 'string') return '';
@@ -22,13 +23,40 @@ function normalizeFrameSource(frame, mimeType = 'image/jpeg') {
   return `data:${mimeType || 'image/jpeg'};base64,${value}`;
 }
 
+function shouldUseDemoHistoryFixture() {
+  if (typeof window === 'undefined') return false;
+  return new URLSearchParams(window.location.search).get('demoHistory') === '1';
+}
+
+function pairingTokenFromQrPayload(qrPayload) {
+  if (!qrPayload) return '';
+  try {
+    return JSON.parse(qrPayload).pairingToken || '';
+  } catch (_) {
+    return '';
+  }
+}
+
+function dashboardWebSocketUrl(bundle) {
+  const value = bundle?.dashboardWsPath || bundle?.wsUrl || '';
+  if (!value || !value.startsWith('/')) return value;
+  if (typeof window === 'undefined') return value;
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${protocol}//${window.location.host}${value}`;
+}
+
 export function useSteplyDashboard() {
   const [networkInfo, setNetworkInfo] = useState(null);
   const [sessionBundle, setSessionBundle] = useState(null);
-  const [selectedTest, setSelectedTest] = useState('chair_stand');
+  const [selectedTest, setSelectedTest] = useState('four_stage_balance');
   const [liveResult, setLiveResult] = useState(null);
   const [finalResult, setFinalResult] = useState(null);
   const [historyItems, setHistoryItems] = useState([]);
+  const [historySource, setHistorySource] = useState({
+    type: 'external_injection',
+    label: 'Waiting for phone-provided history',
+    persistent: false,
+  });
   const [remoteCameraFrame, setRemoteCameraFrame] = useState(null);
   const [remoteCameraStatus, setRemoteCameraStatus] = useState('Phone camera is not connected yet.');
   const [activeStep, setActiveStep] = useState('start');
@@ -41,9 +69,28 @@ export function useSteplyDashboard() {
   const session = sessionBundle?.session || null;
 
   const refreshHistory = useCallback(async () => {
+    // Display-only injection point. In production, these items should be supplied by
+    // the Kotlin phone app, which owns persistent personal history storage.
+    if (shouldUseDemoHistoryFixture()) {
+      setHistoryItems(buildDemoHistoryItems());
+      setHistorySource({
+        type: 'development_fixture',
+        label: 'Synthetic injected browser fixture',
+        persistent: false,
+      });
+      return;
+    }
+
     try {
+      // Development adapter only: the current PC history endpoint is not the
+      // authoritative store and will be removed in the storage cleanup pass.
       const data = await getAllHistory();
       setHistoryItems((data.items || []).slice().reverse());
+      setHistorySource(data.source || {
+        type: 'temporary_pc_display_adapter',
+        label: 'Temporary PC display feed',
+        persistent: false,
+      });
     } catch (err) {
       console.warn(err);
     }
@@ -53,7 +100,7 @@ export function useSteplyDashboard() {
     if (!session?.id || !result) return;
 
     const resultTestType = result.testType || selectedTest;
-    const templates = recommendationTemplatesForLevel(result.recommendationLevel, resultTestType);
+    const templates = recommendationTemplatesForResult({ ...result, testType: resultTestType });
     const primaryValue = result.primaryValue ?? result.repetitionCount ?? 0;
     const primaryLabel = result.primaryLabel || 'Measured Value';
     const payload = {
@@ -79,7 +126,7 @@ export function useSteplyDashboard() {
     };
 
     setFinalResult(payload);
-    setActiveStep('exercise');
+    setActiveStep('result');
     try {
       const saved = await postFinalAnalysis(payload);
       setFinalResult(saved.result);
@@ -114,9 +161,10 @@ export function useSteplyDashboard() {
       frameObjectUrlRef.current = null;
     }
     pendingFrameMetaRef.current = null;
-    if (!bundle?.wsUrl) return;
+    const wsUrl = dashboardWebSocketUrl(bundle);
+    if (!wsUrl) return;
 
-    const socket = new WebSocket(bundle.wsUrl);
+    const socket = new WebSocket(wsUrl);
     socket.binaryType = 'arraybuffer';
     socketRef.current = socket;
 
@@ -157,8 +205,22 @@ export function useSteplyDashboard() {
         }
         if (message.type === 'final') {
           setFinalResult(message.result);
-          setActiveStep('exercise');
+          setActiveStep('result');
           refreshHistory();
+        }
+        if (message.type === 'session-cleared') {
+          setSessionBundle((prev) => prev ? { ...prev, session: message.session } : prev);
+          setLiveResult(null);
+          setFinalResult(null);
+          setHistoryItems([]);
+          if (frameObjectUrlRef.current) {
+            URL.revokeObjectURL(frameObjectUrlRef.current);
+            frameObjectUrlRef.current = null;
+          }
+          pendingFrameMetaRef.current = null;
+          setRemoteCameraFrame(null);
+          setRemoteCameraStatus('Phone session ended. PC temporary personal data was cleared.');
+          setActiveStep('start');
         }
         if (message.type === 'remote-camera-frame-meta') {
           pendingFrameMetaRef.current = message;
@@ -231,14 +293,14 @@ export function useSteplyDashboard() {
     setBusy(true);
     setError('');
     try {
-      const result = await connectProfile(session.id, demoProfile);
+      const result = await connectProfile(session.id, demoProfile, pairingTokenFromQrPayload(sessionBundle?.qrPayload));
       setSessionBundle((prev) => ({ ...prev, session: result.session }));
     } catch (err) {
       setError(err.message);
     } finally {
       setBusy(false);
     }
-  }, [session?.id]);
+  }, [session?.id, sessionBundle?.qrPayload]);
 
   const handleSelectTest = useCallback(async (testId) => {
     setSelectedTest(testId);
@@ -312,6 +374,7 @@ export function useSteplyDashboard() {
     liveResult,
     finalResult,
     historyItems,
+    historySource,
     remoteCameraFrame,
     remoteCameraStatus,
     poseAnalysis,
@@ -335,6 +398,7 @@ export function useSteplyDashboard() {
     liveResult,
     finalResult,
     historyItems,
+    historySource,
     remoteCameraFrame,
     remoteCameraStatus,
     poseAnalysis,

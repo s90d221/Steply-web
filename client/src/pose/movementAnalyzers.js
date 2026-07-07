@@ -1,4 +1,5 @@
 import { MediaPipeChairStandAnalyzer } from './chairStandAnalyzer';
+import { FourStageBalanceAnalyzer } from './fourStageBalanceAnalyzer';
 import { PoseLandmarks, RequiredChairStandLandmarks } from './poseLandmarks';
 import { RecommendationLevels } from './recommendationRules';
 import { SteadiAssessmentRules } from './steadiRules';
@@ -171,70 +172,12 @@ class StaticStandingAnalyzer {
   }
 }
 
-class TugAnalyzer extends StaticStandingAnalyzer {
-  constructor() {
-    super({ durationSeconds: 30 });
-    this.testType = 'tug';
-  }
-
-  addFrame(frame) {
-    const state = super.addFrame(frame);
-    const features = bodyFeatures(frame);
-    if (features) {
-      if (!this.startCenter) this.startCenter = features.center;
-      this.maxTravel = Math.max(this.maxTravel || 0, distance(this.startCenter, features.center));
-      state.primaryValue = this.elapsedSeconds(frame.timestampMs);
-      state.primaryLabel = 'TUG Seconds';
-      state.repetitionCount = state.primaryValue;
-      state.postureMessage = this.maxTravel > 0.18
-        ? 'Walking movement detected. Turn safely and return to the chair.'
-        : 'Stand up, walk, turn, return, and sit when finished.';
-      state.phase = this.maxTravel > 0.18 ? 'walking' : 'standing';
-    }
-    return state;
-  }
-
-  finishSession(completedAt = Date.now()) {
-    const elapsed = this.elapsedSeconds(completedAt);
-    const riskSignal = elapsed >= SteadiAssessmentRules.TugRiskSeconds;
-    const hasUsablePose = this.confidenceSamples.length >= 3 && this.latestState.isFullBodyVisible;
-    const hasMovement = (this.maxTravel || 0) > 0.08;
-    const recommendationLevel = !hasUsablePose
-      ? RecommendationLevels.Recheck
-      : riskSignal || !hasMovement ? RecommendationLevels.PracticeNeeded : RecommendationLevels.Steady;
-    return {
-      testType: 'tug',
-      primaryValue: elapsed,
-      primaryLabel: 'TUG Seconds',
-      repetitionCount: elapsed,
-      durationSeconds: this.durationSeconds,
-      confidence: average(this.confidenceSamples) || this.latestState.confidence,
-      trunkLeanScore: average(this.trunkSamples),
-      symmetryScore: average(this.balanceSamples),
-      stabilityScore: this.stabilityScore(),
-      recommendationLevel,
-      summaryMessage: hasUsablePose
-        ? `${elapsed}s TUG time measured.${hasMovement ? '' : ' Walking movement was limited, so practice is recommended.'}`
-        : 'Full-body walking pose was not stable enough to score. Please recheck.',
-      riskSignal: riskSignal || !hasMovement,
-      startedAt: this.startedAt,
-      completedAt,
-    };
-  }
-
-  reset() {
-    super.reset();
-    this.startCenter = null;
-    this.maxTravel = 0;
-  }
-}
-
 export function createMovementAnalyzer(selectedTest) {
+  if (selectedTest === 'four_stage_balance') {
+    return new FourStageBalanceAnalyzer();
+  }
   if (selectedTest === 'standing_posture' || selectedTest === 'balance_hold') {
     return new StaticStandingAnalyzer();
-  }
-  if (selectedTest === 'tug' || selectedTest === 'tug_walk' || selectedTest === 'weight_shift') {
-    return new TugAnalyzer();
   }
   return new MediaPipeChairStandAnalyzer();
 }

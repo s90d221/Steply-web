@@ -10,7 +10,6 @@ const initialState = {
   isArmUseSuspected: false,
   isStandingOrRising: false,
   phase: 'waiting',
-  movementState: null,
 };
 
 function recommendationLevelForFallback(testType, state) {
@@ -21,9 +20,6 @@ function recommendationLevelForFallback(testType, state) {
     if (primaryValue >= 60) return 'practice_needed';
     return 'recheck';
   }
-  if (testType === 'tug' || testType === 'tug_walk') {
-    return primaryValue >= 12 ? 'practice_needed' : 'steady';
-  }
   if (primaryValue >= 12) return 'steady';
   if (primaryValue >= 8) return 'practice_needed';
   return 'recheck';
@@ -32,7 +28,7 @@ function recommendationLevelForFallback(testType, state) {
 function fallbackResultFromState({ selectedTest, state, durationSeconds, startedAt }) {
   const testType = selectedTest || 'chair_stand';
   const primaryValue = Number(state.primaryValue ?? state.repetitionCount ?? 0);
-  const primaryLabel = state.primaryLabel || (testType === 'tug' ? 'TUG Seconds' : testType === 'standing_posture' ? 'Posture Score' : 'Chair Stands');
+  const primaryLabel = state.primaryLabel || (testType === 'standing_posture' ? 'Posture Score' : 'Chair Stands');
   const recommendationLevel = recommendationLevelForFallback(testType, state);
   return {
     testType,
@@ -44,7 +40,6 @@ function fallbackResultFromState({ selectedTest, state, durationSeconds, started
     trunkLeanScore: state.trunkLeanScore || 0,
     symmetryScore: state.symmetryScore || 0,
     stabilityScore: state.stabilityScore || 0,
-    movementState: state.movementState || null,
     recommendationLevel,
     summaryMessage: `${primaryLabel} ${primaryValue} measured. The browser completed the timed check.`,
     startedAt: startedAt || Date.now() - durationSeconds * 1000,
@@ -69,6 +64,7 @@ export function useRemotePoseAnalysis({ session, selectedTest, remoteCameraFrame
   const [analysisResult, setAnalysisResult] = useState(null);
   const [landmarks, setLandmarks] = useState([]);
   const [frameSize, setFrameSize] = useState(null);
+  const [processingStats, setProcessingStats] = useState(null);
   const [error, setError] = useState('');
   const [isRunning, setIsRunning] = useState(false);
   const [debugLog, setDebugLog] = useState([]);
@@ -92,6 +88,7 @@ export function useRemotePoseAnalysis({ session, selectedTest, remoteCameraFrame
         autoFinishedRef.current = false;
         setIsRunning(true);
         setAnalysisResult(null);
+        setProcessingStats(null);
         if (message.state) {
           analysisStateRef.current = message.state;
           setAnalysisState(message.state);
@@ -104,6 +101,7 @@ export function useRemotePoseAnalysis({ session, selectedTest, remoteCameraFrame
         }
         setLandmarks(message.landmarks || []);
         if (message.frameSize) setFrameSize(message.frameSize);
+        if (message.processing) setProcessingStats(message.processing);
         setWorkerStatus('analyzing');
       }
       if (message.type === 'preview-frame') {
@@ -130,6 +128,7 @@ export function useRemotePoseAnalysis({ session, selectedTest, remoteCameraFrame
         autoFinishedRef.current = false;
         setIsRunning(false);
         setAnalysisResult(null);
+        setProcessingStats(null);
         analysisStateRef.current = message.state || initialState;
         setAnalysisState(message.state || initialState);
         setLandmarks([]);
@@ -156,6 +155,7 @@ export function useRemotePoseAnalysis({ session, selectedTest, remoteCameraFrame
     if (!workerRef.current || !session?.id) return;
     setError('');
     setAnalysisResult(null);
+    setProcessingStats(null);
     analysisStateRef.current = initialState;
     setLandmarks([]);
     setFrameSize(null);
@@ -228,6 +228,7 @@ export function useRemotePoseAnalysis({ session, selectedTest, remoteCameraFrame
     finishFallbackTimerRef.current = null;
     setIsRunning(false);
     setAnalysisResult(null);
+    setProcessingStats(null);
     analysisStateRef.current = initialState;
     setAnalysisState(initialState);
     setLandmarks([]);
@@ -292,6 +293,7 @@ export function useRemotePoseAnalysis({ session, selectedTest, remoteCameraFrame
     analysisResult,
     landmarks,
     frameSize,
+    processingStats,
     error,
     debugLog,
     isRunning,
@@ -309,6 +311,7 @@ export function useRemotePoseAnalysis({ session, selectedTest, remoteCameraFrame
     analysisResult,
     landmarks,
     frameSize,
+    processingStats,
     error,
     debugLog,
     isRunning,

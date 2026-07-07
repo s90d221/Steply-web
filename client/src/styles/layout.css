@@ -62,7 +62,7 @@
   display: grid;
   gap: 16px;
   min-width: 0;
-  max-width: 640px;
+  max-width: 1040px;
 }
 
 .top-bar {
@@ -125,8 +125,8 @@
 .steply-shell--focus {
   display: block;
   min-height: 100vh;
-  width: min(1180px, 100%);
-  padding: 20px;
+  width: min(1440px, 100%);
+  padding: 24px;
 }
 
 .dashboard-main--focus {
@@ -143,7 +143,7 @@
 }
 
 .steply-shell--main .dashboard-main {
-  width: min(640px, 100%);
+  width: min(1040px, 100%);
   justify-self: center;
 }
 
@@ -157,7 +157,7 @@
 }
 
 .steply-shell--with-sidebar .dashboard-main {
-  width: min(640px, 100%);
+  width: min(1040px, 100%);
   justify-self: center;
 }
 

@@ -9,8 +9,9 @@ The PC Web app is now the analysis host:
 3. Shows a profile query button in the left rail
 4. Receives mobile camera frames
 5. Runs MediaPipe worker analysis
-6. Saves final history
+6. Keeps final result in an in-memory session cache only
 7. Broadcasts final results back to the mobile WebSocket client
+8. Clears session personal data when the phone ends or disconnects the session
 
 ## Profile fields shown on PC
 
@@ -25,7 +26,7 @@ Click `프로필 정보 조회` to re-fetch the current session status from the 
 
 ## Result sync back to mobile
 
-When `/api/analysis/final` is called, `analysisService.saveFinalResult()` stores the result in PC `data/history.json` and broadcasts:
+When `/api/analysis/final` is called, `analysisService.saveFinalResult()` stores the result only in the current Node process memory and broadcasts:
 
 ```json
 {
@@ -35,3 +36,5 @@ When `/api/analysis/final` is called, `analysisService.saveFinalResult()` stores
 ```
 
 The Android camera WebSocket listens for this final message and stores the result in local Room history.
+
+PC Web must not create or retain `data/history.json`. Mobile requests cleanup with `POST /api/session/{sessionId}/cleanup`; WebSocket disconnect performs the same cleanup as a fallback.

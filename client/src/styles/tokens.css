@@ -27,6 +27,28 @@
   --radius-input: 12px;
   --radius-notice: 8px;
   --rail-width: 336px;
+
+  /* 4.6 distance-view tokens: readable from 1.5-2m on a PC/TV display. */
+  --distance-font-kicker: 1.125rem;
+  --distance-font-small: 1.25rem;
+  --distance-font-body: 1.5rem;
+  --distance-font-title: 2.75rem;
+  --distance-font-display: 4.5rem;
+  --distance-line-height: 1.35;
+  --distance-gap: 24px;
+  --distance-panel-padding: 28px;
+  --distance-control-min: 72px;
+  --distance-icon-size: 84px;
+  --distance-stage-min: 620px;
+  --distance-contrast-bg: #F2F7F4;
+  --distance-contrast-surface: #FFFFFF;
+  --distance-contrast-panel: #E8F3EE;
+  --distance-contrast-text: #0B1410;
+  --distance-contrast-muted: #263A32;
+  --distance-live-bg: rgba(5, 18, 14, 0.9);
+  --distance-live-text: #F7FFFB;
+  --distance-success-bg: #CDEBDD;
+  --distance-warning-bg: #FFF0C9;
 }
 
 * { box-sizing: border-box; }
@@ -49,6 +71,18 @@ button { cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: 0.62; }
 
 .steply-hidden { display: none; }
+
+[data-vision="low"],
+.vision-low {
+  --background: var(--distance-contrast-bg);
+  --surface: var(--distance-contrast-surface);
+  --surface-variant: var(--distance-contrast-panel);
+  --text-primary: var(--distance-contrast-text);
+  --text-secondary: var(--distance-contrast-muted);
+  --outline: #4D6259;
+  --shadow-card: none;
+  --shadow-soft: 0 10px 28px rgba(11, 20, 16, 0.16);
+}
 
 @media (prefers-color-scheme: dark) {
   :root {
@@ -74,5 +108,25 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
     --error-container: #690005;
     --shadow-soft: 0 8px 22px rgba(0, 0, 0, 0.32);
     --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.24);
+    --distance-contrast-bg: #0F1714;
+    --distance-contrast-surface: #F7FFFB;
+    --distance-contrast-panel: #DCEBE5;
+    --distance-contrast-text: #07110D;
+    --distance-contrast-muted: #20352E;
+    --distance-live-bg: rgba(247, 255, 251, 0.94);
+    --distance-live-text: #07110D;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --background: var(--distance-contrast-bg);
+    --surface: var(--distance-contrast-surface);
+    --surface-variant: var(--distance-contrast-panel);
+    --text-primary: var(--distance-contrast-text);
+    --text-secondary: var(--distance-contrast-muted);
+    --outline: #2C433A;
+    --shadow-card: none;
+    --border-soft: 2px solid var(--outline);
   }
 }

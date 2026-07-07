@@ -86,17 +86,37 @@ function getPreferredLocalIp() {
   return fallback ? fallback.address : null;
 }
 
+function getPublicProtocol() {
+  if (process.env.STEPLY_SERVER_URL) {
+    try {
+      const parsed = new URL(process.env.STEPLY_SERVER_URL);
+      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+        return parsed.protocol.replace(':', '');
+      }
+    } catch (_) {
+      // Fall through to the explicit/default protocol below.
+    }
+  }
+
+  if (process.env.STEPLY_SERVER_PROTOCOL === 'http' || process.env.STEPLY_SERVER_PROTOCOL === 'https') {
+    return process.env.STEPLY_SERVER_PROTOCOL;
+  }
+
+  return process.env.STEPLY_INSECURE_HTTP === '1' ? 'http' : 'https';
+}
+
 function getServerBaseUrl(req) {
   if (process.env.STEPLY_SERVER_URL) return process.env.STEPLY_SERVER_URL.replace(/\/$/, '');
 
   const host = req.headers.host || `localhost:${PORT}`;
   const preferredIp = getPreferredLocalIp();
+  const protocol = getPublicProtocol();
 
   if (preferredIp && (host.startsWith('localhost') || host.startsWith('127.0.0.1') || host.startsWith('0.0.0.0'))) {
-    return `http://${preferredIp}:${PORT}`;
+    return `${protocol}://${preferredIp}:${PORT}`;
   }
 
-  return `http://${host}`;
+  return `${protocol}://${host}`;
 }
 
 
@@ -122,16 +142,20 @@ function uniqueUrls(urls) {
 function getCandidateServerUrls(req) {
   const primary = getServerBaseUrl(req);
   const urls = [primary];
+  const protocol = getPublicProtocol();
+  const includeClientPort = CLIENT_PORT &&
+    CLIENT_PORT !== PORT &&
+    (protocol === 'http' || process.env.STEPLY_INCLUDE_CLIENT_PORT === '1');
 
-  // During development the phone may reach the Vite server on 5173 more reliably.
-  // Vite proxies /api and /ws to the Node server, so this is a valid fallback.
-  if (CLIENT_PORT && CLIENT_PORT !== PORT) {
+  // Only include the Vite port when it is actually serving a compatible protocol.
+  // In the secure mobile flow, phones connect directly to the HTTPS/WSS Node server.
+  if (includeClientPort) {
     urls.push(replacePort(primary, CLIENT_PORT));
   }
 
   for (const ip of getLocalIps()) {
-    urls.push(`http://${ip}:${PORT}`);
-    if (CLIENT_PORT && CLIENT_PORT !== PORT) urls.push(`http://${ip}:${CLIENT_PORT}`);
+    urls.push(`${protocol}://${ip}:${PORT}`);
+    if (includeClientPort) urls.push(`${protocol}://${ip}:${CLIENT_PORT}`);
   }
 
   return uniqueUrls(urls);
@@ -141,6 +165,7 @@ module.exports = {
   getLocalIps,
   getLocalInterfaces,
   getPreferredLocalIp,
+  getPublicProtocol,
   getServerBaseUrl,
   getCandidateServerUrls,
 };

@@ -29,7 +29,7 @@ export function statusFromScore(score = 0) {
 export function statusLabel(status) {
   if (status === 'steady') return 'Stable';
   if (status === 'practice_needed') return 'Practice Recommended';
-  return 'Check Again';
+  return 'Needs Review';
 }
 
 export function roundMetric(value, fallback = 0) {

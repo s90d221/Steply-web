@@ -65,7 +65,7 @@
 .status-pill--recheck { color: var(--error); background: var(--error-container); }
 
 .session-card h2, .qr-card h3, .rail-profile-card h3,
-.feedback-stack h3, .trend-card h3, .empty-state-card h3, .history-item h3,
+.feedback-stack h3, .trend-card h3, .empty-state-card h3, .history-trend-card h3,
 .feedback-result-card h3, .exercise-card h3, .recommendation-header h2,
 .result-hero-card h2, .arena-card h2 {
   margin: 6px 0 8px;
@@ -74,7 +74,7 @@
 }
 
 .session-card p, .qr-card p, .rail-profile-card p, .trend-card p,
-.empty-state-card p, .history-item p, .exercise-card p, .recommendation-header p,
+.empty-state-card p, .history-trend-card p, .exercise-card p, .recommendation-header p,
 .result-hero-card p, .hero-card p, .feedback-result-card p {
   margin: 0;
   color: var(--text-secondary);
@@ -94,4 +94,79 @@
   opacity: 0.48;
   transform: none;
   box-shadow: none;
+}
+
+.distance-mode {
+  color: var(--distance-contrast-text);
+}
+
+.distance-mode .steply-card {
+  padding: var(--distance-panel-padding);
+  background: var(--distance-contrast-surface);
+  border-color: color-mix(in srgb, var(--outline) 76%, var(--distance-contrast-text));
+}
+
+.distance-mode .steply-card--sand,
+.distance-mode .metric-card--accent {
+  background: var(--distance-contrast-panel);
+}
+
+.distance-mode .eyebrow {
+  color: var(--primary-dark);
+  font-size: var(--distance-font-kicker);
+  line-height: 1.2;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.distance-mode h2,
+.distance-mode h3 {
+  color: var(--distance-contrast-text);
+}
+
+.distance-mode p,
+.distance-mode li {
+  color: var(--distance-contrast-muted);
+  font-size: var(--distance-font-body);
+  line-height: var(--distance-line-height);
+}
+
+.distance-mode .steply-button {
+  min-height: var(--distance-control-min);
+  padding: 0 28px;
+  font-size: var(--distance-font-small);
+  font-weight: 800;
+}
+
+.distance-mode .status-pill {
+  min-height: 48px;
+  padding: 0 18px;
+  font-size: var(--distance-font-small);
+  font-weight: 800;
+  border: 2px solid currentColor;
+}
+
+.distance-mode .metric-row {
+  gap: var(--distance-gap);
+}
+
+.distance-mode .metric-card {
+  min-height: 178px;
+  gap: 10px;
+}
+
+.distance-mode .metric-card__value {
+  font-size: var(--distance-font-display);
+}
+
+.distance-mode .metric-card__label {
+  color: var(--distance-contrast-text);
+  font-size: var(--distance-font-body);
+  line-height: 1.2;
+}
+
+.distance-mode .metric-card__detail {
+  color: var(--distance-contrast-muted);
+  font-size: var(--distance-font-small);
+  line-height: 1.3;
 }

@@ -7,28 +7,28 @@
 }
 
 .analysis-layout--guided {
-  grid-template-columns: minmax(0, 1fr) clamp(260px, 19vw, 320px);
-  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: var(--distance-gap);
 }
 
 .analysis-guided-body {
   display: grid;
-  grid-template-columns: 300px minmax(0, 1fr);
-  gap: 16px;
+  grid-template-columns: 340px minmax(0, 1fr);
+  gap: var(--distance-gap);
   align-items: stretch;
 }
 
 .analysis-main-zone {
   display: grid;
   grid-template-rows: 1fr auto auto;
-  gap: 14px;
+  gap: var(--distance-gap);
   min-width: 0;
 }
 
 .analysis-side {
   display: grid;
   align-content: start;
-  gap: 12px;
+  gap: var(--distance-gap);
   min-width: 0;
 }
 
@@ -47,7 +47,7 @@
 }
 
 .arena-card--guided {
-  min-height: calc(100vh - 42px);
+  min-height: calc(100vh - 48px);
 }
 
 .arena-card .eyebrow {
@@ -60,6 +60,11 @@
   text-transform: capitalize;
 }
 
+.distance-mode--analysis .arena-card h2 {
+  font-size: var(--distance-font-title);
+  text-transform: none;
+}
+
 .arena-card__topbar {
   display: flex;
   justify-content: space-between;
@@ -69,7 +74,7 @@
 
 .analysis-test-tabs {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 8px;
   margin: 16px 0 8px;
 }
@@ -79,16 +84,24 @@
 }
 
 .analysis-test-tab {
-  min-height: 52px;
-  padding: 10px 12px;
+  display: grid;
+  gap: 4px;
+  align-content: center;
+  min-height: 72px;
+  padding: 12px 14px;
   border: 1px solid var(--outline);
   border-radius: var(--radius-button);
   background: var(--surface);
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: var(--distance-font-small);
   font-weight: 700;
   line-height: 1.25;
   cursor: pointer;
+}
+
+.analysis-test-tab strong,
+.analysis-test-tab span {
+  display: block;
 }
 
 .analysis-test-tab:hover {
@@ -127,8 +140,8 @@
 
 .arena-stage--guided {
   width: 100%;
-  height: min(56vh, 560px);
-  min-height: 460px;
+  height: min(64vh, 720px);
+  min-height: var(--distance-stage-min);
   margin: 0;
   border-radius: var(--radius-card);
   background: var(--surface-variant);
@@ -290,46 +303,44 @@
 
 .guided-camera-message {
   position: absolute;
-  top: 50%;
+  bottom: 28px;
   left: 50%;
   z-index: 10;
   display: flex;
   align-items: center;
-  gap: 14px;
-  width: min(520px, calc(100% - 80px));
-  padding: 20px 26px;
-  color: #f5fffc;
-  background: rgba(17, 25, 22, 0.82);
+  gap: 18px;
+  width: min(860px, calc(100% - 56px));
+  padding: 22px 28px;
+  color: var(--distance-live-text);
+  background: var(--distance-live-bg);
   border-radius: var(--radius-button);
   box-shadow: var(--shadow-soft);
-  backdrop-filter: blur(18px);
-  transform: translate(-50%, -50%);
+  transform: translateX(-50%);
 }
 
 .guided-camera-icon {
   flex: 0 0 auto;
   color: color-mix(in srgb, var(--primary) 78%, white);
-  font-size: 24px;
+  font-size: 44px;
   font-weight: 800;
 }
 
 .guided-camera-message strong {
   display: block;
-  font-size: 18px;
-  line-height: 1.35;
+  font-size: 30px;
+  line-height: 1.24;
 }
 
 .guided-camera-message p {
   margin: 4px 0 0;
-  color: rgba(245, 255, 252, 0.78);
-  font-size: 13px;
+  color: color-mix(in srgb, var(--distance-live-text) 82%, transparent);
+  font-size: 22px;
   font-weight: 700;
 }
 
 /* Guide card */
 .movement-guide-card {
-  min-height: 520px;
-  padding: 18px;
+  min-height: 560px;
   color: var(--text-primary);
   background: var(--surface);
 }
@@ -337,7 +348,7 @@
 .movement-guide-card h3 {
   margin: 0 0 20px;
   color: var(--text-primary);
-  font-size: 20px;
+  font-size: 30px;
   font-weight: 700;
 }
 
@@ -371,7 +382,7 @@
 
 .movement-guide-list li {
   position: relative;
-  padding-left: 34px;
+  padding-left: 42px;
   color: var(--text-primary);
   font-weight: 600;
 }
@@ -383,12 +394,12 @@
   left: 0;
   display: grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
+  width: 28px;
+  height: 28px;
   color: var(--on-primary);
   background: var(--primary);
   border-radius: 7px;
-  font-size: 14px;
+  font-size: 18px;
 }
 
 .movement-guide-tip {
@@ -427,7 +438,7 @@
 .movement-setup-guide p {
   margin: 0;
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: var(--distance-font-small);
   font-weight: 700;
   line-height: 1.45;
 }
@@ -444,7 +455,7 @@
   position: relative;
   padding-left: 20px;
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: var(--distance-font-small);
   font-weight: 700;
   line-height: 1.35;
 }
@@ -478,8 +489,10 @@
 .coach-message--guided {
   width: 100%;
   margin: 0;
-  padding: 16px 20px;
-  font-size: 15px;
+  padding: 20px 24px;
+  color: var(--distance-contrast-text);
+  background: var(--distance-success-bg);
+  font-size: var(--distance-font-body);
   text-align: left;
 }
 
@@ -487,7 +500,7 @@
   display: grid;
   gap: 12px;
   width: 100%;
-  padding: 16px;
+  padding: 22px;
   color: var(--text-primary);
   background: var(--surface);
 }
@@ -501,7 +514,7 @@
 
 .setup-guide-card h3 {
   margin: 4px 0 0;
-  font-size: 20px;
+  font-size: 30px;
   font-weight: 700;
 }
 
@@ -515,14 +528,14 @@
   border: 1px solid color-mix(in srgb, var(--primary) 24%, var(--outline));
   border-radius: 50%;
   background: var(--primary-container);
-  font-size: 22px;
+  font-size: 34px;
   font-weight: 800;
   line-height: 1;
 }
 
 .setup-countdown span {
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: 15px;
   font-weight: 700;
 }
 
@@ -537,7 +550,7 @@
 
 .setup-checklist {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   margin: 0;
   padding: 0;
@@ -549,12 +562,12 @@
   align-items: center;
   gap: 8px;
   min-height: 38px;
-  padding: 8px 10px;
+  padding: 12px 14px;
   color: var(--text-primary);
   border: 1px solid color-mix(in srgb, var(--outline) 70%, transparent);
   border-radius: var(--radius-notice);
   background: var(--surface-variant);
-  font-size: 13px;
+  font-size: 18px;
   font-weight: 700;
 }
 
@@ -567,7 +580,7 @@
   color: var(--error);
   border-radius: 7px;
   background: var(--error-container);
-  font-size: 12px;
+  font-size: 15px;
 }
 
 .setup-checklist-item--passed span {
@@ -577,11 +590,11 @@
 
 .setup-warning {
   margin: 0;
-  padding: 10px 12px;
+  padding: 14px 16px;
   color: var(--error);
   border-radius: var(--radius-notice);
   background: var(--error-container);
-  font-size: 13px;
+  font-size: var(--distance-font-small);
   font-weight: 700;
   line-height: 1.35;
 }
@@ -616,7 +629,7 @@
   gap: 8px;
   min-height: 36px;
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: var(--distance-font-small);
   font-weight: 700;
 }
 
@@ -644,7 +657,7 @@
 
 .analysis-controls--guided {
   grid-template-columns: 1.25fr 1fr 0.85fr;
-  width: min(100%, 620px);
+  width: 100%;
   margin: 0;
 }
 
@@ -679,7 +692,7 @@
 
 .guided-status-card h3 {
   margin-top: 8px;
-  font-size: 20px;
+  font-size: 30px;
   font-weight: 700;
 }
 
@@ -687,9 +700,9 @@
   display: flex;
   justify-content: space-between;
   gap: 10px;
-  padding: 8px 0;
+  padding: 16px 0;
   color: var(--text-primary);
-  font-size: 15px;
+  font-size: var(--distance-font-body);
 }
 
 .guided-status-row+.guided-status-row {
@@ -698,6 +711,7 @@
 
 .guided-status-row strong {
   color: var(--text-primary);
+  font-size: 32px;
 }
 
 /* Timer and metrics */
@@ -706,7 +720,7 @@
   display: grid;
   place-items: center;
   justify-self: center;
-  width: min(100%, 260px);
+  width: min(100%, 320px);
   aspect-ratio: 1;
   padding: 12px;
   background: conic-gradient(var(--primary) 0deg, var(--secondary) var(--timer-deg), var(--surface-variant) var(--timer-deg));
@@ -738,7 +752,7 @@
 }
 
 .timer-circle__value {
-  font-size: clamp(44px, 5vw, 62px);
+  font-size: 76px;
   font-weight: 800;
   line-height: 1;
   letter-spacing: 0;
@@ -746,37 +760,37 @@
 
 .timer-circle__label {
   color: var(--text-secondary);
-  font-size: 15px;
+  font-size: 22px;
   font-weight: 700;
 }
 
 .timer-circle__score {
   margin-top: 4px;
   color: var(--primary);
-  font-size: 14px;
+  font-size: 20px;
   font-weight: 700;
 }
 
 .analysis-side .metric-card {
-  min-height: 118px;
-  padding: 18px;
+  min-height: 178px;
+  padding: var(--distance-panel-padding);
 }
 
 .analysis-side .metric-card__value {
-  font-size: clamp(30px, 3vw, 42px);
+  font-size: var(--distance-font-display);
   letter-spacing: 0;
 }
 
 .analysis-side .metric-card__label {
-  font-size: 16px;
+  font-size: var(--distance-font-body);
 }
 
 .analysis-side .metric-card__detail {
-  font-size: 14px;
+  font-size: var(--distance-font-small);
 }
 
 .analysis-side--guided .timer-circle {
-  width: min(100%, 270px);
+  width: min(100%, 320px);
 }
 
 .analysis-side--guided .metric-card {

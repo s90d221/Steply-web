@@ -67,7 +67,7 @@ export function TimerCircle({ value = 17, max = 30, label = 'seconds', score = 8
       <div className="timer-circle__inner">
         <span className="timer-circle__value">{value}</span>
         <span className="timer-circle__label">{label}</span>
-        <span className="timer-circle__score">Score {score}</span>
+        <span className="timer-circle__score">Record {score}</span>
       </div>
     </div>
   );
@@ -78,7 +78,7 @@ export function ExerciseCard({ number, title, description, minutes, type = 'A', 
     <SteplyCard className={`exercise-card ${completed ? 'exercise-card--complete' : ''}`}>
       <div className="exercise-card__topline">
         <span className="exercise-card__number">{number}</span>
-        <span className="exercise-card__chip">Type {type}</span>
+        <span className="exercise-card__chip">{type}</span>
       </div>
       <h3>{title}</h3>
       <p>{description}</p>

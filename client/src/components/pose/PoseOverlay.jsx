@@ -1,11 +1,21 @@
 import { PoseConnections } from '../../pose/poseLandmarks';
 
-function pointByName(landmarks) {
+export const POSE_OVERLAY_MIN_VISIBILITY = 0.35;
+
+export function pointByName(landmarks, minVisibility = POSE_OVERLAY_MIN_VISIBILITY) {
   const map = new Map();
   for (const point of landmarks || []) {
-    if ((point.visibility ?? 1) >= 0.35) map.set(point.name, point);
+    if ((point.visibility ?? 1) >= minVisibility) map.set(point.name, point);
   }
   return map;
+}
+
+export function posePointToOverlayPercent(point) {
+  if (!point) return null;
+  return {
+    x: point.x * 100,
+    y: point.y * 100,
+  };
 }
 
 export function PoseOverlay({ landmarks }) {

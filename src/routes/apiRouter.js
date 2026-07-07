@@ -4,7 +4,6 @@ const networkController = require('../controllers/networkController');
 const sessionController = require('../controllers/sessionController');
 const analysisController = require('../controllers/analysisController');
 const historyController = require('../controllers/historyController');
-const movementStateController = require('../controllers/movementStateController');
 
 async function requestHandler(req, res) {
   if (req.method === 'OPTIONS') return sendJson(res, 204, {});
@@ -30,6 +29,11 @@ async function requestHandler(req, res) {
       return await sessionController.connectSession(req, res, connectMatch[1]);
     }
 
+    const cleanupMatch = pathname.match(/^\/api\/session\/([^/]+)\/cleanup$/);
+    if ((req.method === 'POST' || req.method === 'DELETE') && cleanupMatch) {
+      return await sessionController.cleanupSession(req, res, cleanupMatch[1]);
+    }
+
     const statusMatch = pathname.match(/^\/api\/session\/([^/]+)\/status$/);
     if (req.method === 'GET' && statusMatch) {
       return sessionController.getSessionStatus(req, res, statusMatch[1]);
@@ -46,10 +50,6 @@ async function requestHandler(req, res) {
 
     if (req.method === 'POST' && pathname === '/api/analysis/final') {
       return await analysisController.finalAnalysis(req, res);
-    }
-
-    if (req.method === 'POST' && pathname === '/api/predict_movement_state') {
-      return await movementStateController.predictMovementState(req, res);
     }
 
     if (req.method === 'GET' && pathname === '/api/history') {

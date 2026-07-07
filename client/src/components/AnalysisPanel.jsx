@@ -7,29 +7,47 @@ import { roundMetric, statusFromScore } from '../utils/format';
 import { movementTests } from '../data/movementTests';
 import standingPostureGuide from '../assets/movement-guides/standing-posture-check.png';
 import chairStandGuide from '../assets/movement-guides/chair-stand-check.png';
-import tugWalkGuide from '../assets/movement-guides/tug-walk-check.png';
 import standingReferenceOverlay from '../assets/movement-guides/standing-reference-overlay.png';
 
-// false로 바꿀 경우 개발자 디버깅용 요소는 없어짐.
+// Set to true when local pose-worker instrumentation is needed.
 const SHOW_DEBUG_TOOLS = false;
 
 const movementGuideContent = {
+  four_stage_balance: {
+    image: standingPostureGuide,
+    alt: '4-stage balance standing guide from front and side views',
+    steps: [
+      'Start with your feet side by side, then follow the stance shown on the screen.',
+      'Keep a chair or wall within reach for semi-tandem, tandem, and one-leg stances.',
+      'If you sway, place your foot down and reset slowly.',
+    ],
+    tip: 'Steply watches how you settle into the stance and how gently you hold it.',
+    setup: {
+      title: 'Front-view setup',
+      body: 'Place your phone about 1.5m away and make sure your full body is visible.',
+      points: [
+        'Keep your feet and ankles inside the bottom of the frame.',
+        'Stand near a chair or wall if you need support.',
+        'Use the large screen for simple step-by-step guidance.',
+      ],
+    },
+  },
   standing_posture: {
     image: standingPostureGuide,
     alt: 'Standing posture alignment guide from front and side views',
     steps: [
-      'Stand tall with your feet about shoulder-width apart.',
-      'Keep your shoulders relaxed and face forward.',
-      'Stay still while the camera checks your alignment.',
+      'Stand comfortably with your feet about shoulder-width apart.',
+      'Relax your shoulders and look forward.',
+      'Hold still gently while the camera checks the view.',
     ],
-    tip: 'Show your full body from head to feet so the posture line can be measured clearly.',
+    tip: 'A full-body view helps the posture guide stay clear.',
     setup: {
-      title: 'Front-facing setup',
-      body: 'Stand facing the camera with your head, shoulders, hips, knees, and feet visible.',
+      title: 'Front-view setup',
+      body: 'Adjust the camera so your head, shoulders, hips, knees, and feet are visible.',
       points: [
-        'Keep your feet inside the camera frame.',
-        'Leave some space above your head and below your feet.',
-        'Hold still until the countdown starts.',
+        'Keep both feet inside the camera view.',
+        'Leave a little space above your head and below your feet.',
+        'Stand comfortably until the countdown begins.',
       ],
     },
   },
@@ -37,37 +55,18 @@ const movementGuideContent = {
     image: chairStandGuide,
     alt: 'Chair stand guide showing standing, sitting, and standing again',
     steps: [
-      'Cross your arms over your chest before starting.',
-      'Sit down and stand up without rushing.',
-      'Keep your feet planted and your chest open.',
+      'Before starting, fold your arms comfortably across your chest.',
+      'Stand and sit without rushing.',
+      'Keep both feet flat and your chest comfortably open.',
     ],
-    tip: 'Do not lean too far back on the chair. Push the floor gently with your feet.',
+    tip: 'Use the floor through both feet and avoid dropping quickly into the chair.',
     setup: {
       title: 'Side-view setup',
-      body: 'Place the camera to the side so your sitting and standing movement is easy to see.',
+      body: 'Place the camera to the side so sitting and standing are easy to see.',
       points: [
-        'Show the chair, hips, knees, ankles, and feet.',
-        'Sit near the front edge of the chair before starting.',
-        'Keep only one person in the camera view.',
-      ],
-    },
-  },
-  tug: {
-    image: tugWalkGuide,
-    alt: 'Timed Up and Go walking guide showing chair, walking path, cone, and return distance',
-    steps: [
-      'Start seated, then stand up when the test begins.',
-      'Walk around the marker at a steady pace.',
-      'Return to the chair and sit down safely.',
-    ],
-    tip: 'Keep the walking path visible in the camera view, including the chair and marker.',
-    setup: {
-      title: 'Walking-path setup',
-      body: 'Stand or sit where your full body and walking path can be seen clearly.',
-      points: [
-        'Make sure both feet are visible before the test starts.',
-        'Keep the chair and turn marker inside the camera view.',
-        'Use a bright space and keep the camera steady.',
+        'Keep the chair, hips, knees, ankles, and feet visible.',
+        'Sit comfortably near the front of the chair before starting.',
+        'Only one person should be in the camera view.',
       ],
     },
   },
@@ -88,7 +87,7 @@ function phaseLabel(phase) {
 }
 
 function setupStatusLabel(setupCheck, isRunning, hasFrame) {
-  if (isRunning) return 'Testing';
+  if (isRunning) return 'Mission in progress';
   if (!hasFrame) return 'Waiting for camera';
   if (setupCheck.isReady) return 'Ready';
   return 'Adjust position';
@@ -104,45 +103,48 @@ function SetupChecklistItem({ label, passed }) {
 }
 
 function setupChecklistItems(testType, checks) {
-  if (testType === 'standing_posture' || testType === 'balance_hold') {
+  if (testType === 'standing_posture' || testType === 'balance_hold' || testType === 'four_stage_balance') {
     return [
-      { label: 'Only you in frame', passed: checks.singlePersonStable },
-      { label: 'Face the camera', passed: checks.correctDirection },
-      { label: 'Head-to-feet visible', passed: checks.fullBodyVisible },
-      { label: 'Feet inside frame', passed: checks.lowerBodyVisible },
+      { label: 'One person in view', passed: checks.singlePersonStable },
+      { label: 'Facing the camera', passed: checks.correctDirection },
+      { label: 'Full body visible', passed: checks.fullBodyVisible },
+      { label: 'Feet inside the frame', passed: checks.lowerBodyVisible },
       { label: 'Good camera distance', passed: checks.properDistance },
-      { label: 'Hold still clearly', passed: checks.goodVisibility && checks.stablePose },
-    ];
-  }
-
-  if (testType === 'tug' || testType === 'tug_walk') {
-    return [
-      { label: 'Only you in frame', passed: checks.singlePersonStable },
-      { label: 'Full body at start', passed: checks.fullBodyVisible },
-      { label: 'Both feet visible', passed: checks.lowerBodyVisible },
-      { label: 'Walking path framed', passed: checks.properDistance },
-      { label: 'Bright steady camera', passed: checks.goodVisibility },
-      { label: 'Ready start position', passed: checks.correctDirection },
+      { label: 'Clear body tracking', passed: checks.goodVisibility && checks.stablePose },
     ];
   }
 
   return [
-    { label: 'Only you in frame', passed: checks.singlePersonStable },
-    { label: 'Side view visible', passed: checks.correctDirection },
+    { label: 'One person in view', passed: checks.singlePersonStable },
+    { label: 'Side view ready', passed: checks.correctDirection },
     { label: 'Chair and body visible', passed: checks.fullBodyVisible },
     { label: 'Knees and ankles visible', passed: checks.lowerBodyVisible },
     { label: 'Good camera distance', passed: checks.properDistance },
-    { label: 'Movement clearly detected', passed: checks.goodVisibility && checks.stablePose },
+    { label: 'Movement tracking is clear', passed: checks.goodVisibility && checks.stablePose },
   ];
 }
 
 function userFriendlyStatus(state, remoteCameraFrame, frameLoadError) {
-  if (frameLoadError) return 'The camera frame could not be loaded. Please reconnect the camera.';
-  if (!remoteCameraFrame?.src) return 'Scan the QR code with the mobile app and start camera streaming.';
+  if (frameLoadError) return 'The camera view did not load. Check the phone connection and try again.';
+  if (!remoteCameraFrame?.src) return 'Connect your phone camera, then stand where your full body is visible.';
   if (state.warningMessage) return state.warningMessage;
-  if (!state.isFullBodyVisible) return 'Move back until your full body is visible on the screen.';
+  if (!state.isFullBodyVisible) return 'Take one small step back so your full body is visible.';
   if (state.postureMessage) return state.postureMessage;
-  return 'Good. Follow the screen and continue the test slowly.';
+  return 'You’re doing well. Keep your eyes forward and move gently.';
+}
+
+function localizedSetupText(message) {
+  if (!message) return message;
+  const text = String(message);
+  if (text.includes('Great. Hold still')) return 'Great. Hold still gently for three seconds.';
+  if (text.includes('only one person')) return 'Keep only one person in the camera view.';
+  if (text.includes('full body')) return 'Step back a little so your full body is visible.';
+  if (text.includes('knees and ankles')) return 'Adjust the camera angle so your knees and ankles are visible.';
+  if (text.includes('brighter space') || text.includes('camera steady')) return 'Use a brighter space and keep the camera steady.';
+  if (text.includes('Stand sideways')) return 'Turn sideways so sitting and standing are easy to see.';
+  if (text.includes('Stand where')) return 'Stand where your full body is visible.';
+  if (text.includes('camera frame')) return 'Fit your full body inside the camera frame.';
+  return text;
 }
 
 export function AnalysisPanel({
@@ -151,6 +153,9 @@ export function AnalysisPanel({
   selectedTest,
   onSelectTest,
   poseAnalysis,
+  missionPreviewActive = false,
+  onPreviewMissionStart,
+  onPreviewResult,
 }) {
   const [frameLoadError, setFrameLoadError] = useState('');
   const [readyHoldSeconds, setReadyHoldSeconds] = useState(0);
@@ -166,6 +171,7 @@ export function AnalysisPanel({
 
   const state = poseAnalysis?.analysisState || {};
   const result = poseAnalysis?.analysisResult || null;
+  const isMissionRunning = Boolean(poseAnalysis?.isRunning || missionPreviewActive);
 
   const displayFrame = setupImageFrame || remoteCameraFrame;
   const isSetupImageMode = Boolean(setupImageFrame?.src);
@@ -180,11 +186,16 @@ export function AnalysisPanel({
   const [displayElapsedSeconds, setDisplayElapsedSeconds] = useState(0);
   const timerStartedAtRef = useRef(null);
 
+  const selectedTestInfo = movementTests.find((test) => test.id === selectedTest);
   const primaryValue = state.primaryValue ?? state.repetitionCount ?? 0;
-  const primaryLabel = state.primaryLabel || 'Chair Stands';
+  const primaryLabel = selectedTest === 'four_stage_balance'
+    ? 'Hold Time'
+    : state.primaryLabel
+    || selectedTestInfo?.primaryMetric?.label
+    || 'Chair Stands';
 
   useEffect(() => {
-    if (!poseAnalysis?.isRunning) {
+    if (!isMissionRunning) {
       timerStartedAtRef.current = null;
       setDisplayElapsedSeconds(Math.min(durationSeconds, analysisElapsedSeconds));
       return undefined;
@@ -211,7 +222,7 @@ export function AnalysisPanel({
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [poseAnalysis?.isRunning, durationSeconds, analysisElapsedSeconds]);
+  }, [isMissionRunning, durationSeconds, analysisElapsedSeconds]);
 
   const elapsedSeconds = displayElapsedSeconds;
 
@@ -230,27 +241,39 @@ export function AnalysisPanel({
   const cameraStatusText = isSetupImageMode
     ? 'Setup image preview'
     : frameLoadError || remoteCameraStatus || 'Waiting for phone camera';
-  const friendlyStatus = userFriendlyStatus(state, displayFrame, frameLoadError);
+  const friendlyStatus = missionPreviewActive
+    ? 'Hold this position gently. You’re doing well. Keep your eyes forward.'
+    : userFriendlyStatus(state, displayFrame, frameLoadError);
   const startAnalysis = poseAnalysis?.startAnalysis;
   const setupCheck = useMemo(() => evaluateSetupReadiness({
     landmarks: poseAnalysis?.landmarks || [],
     testType: selectedTest,
     previousSample: previousSetupSampleRef.current,
-    strictStability: !poseAnalysis?.isRunning,
-  }), [poseAnalysis?.isRunning, poseAnalysis?.landmarks, selectedTest]);
+    strictStability: !isMissionRunning,
+  }), [isMissionRunning, poseAnalysis?.landmarks, selectedTest]);
+  const displaySetupCheck = missionPreviewActive
+    ? {
+      ...setupCheck,
+      isReady: true,
+      readyScore: 1,
+      warnings: [],
+      mainMessage: 'Hold this position gently. You’re doing well. Keep your eyes forward.',
+      checks: Object.fromEntries(Object.keys(setupCheck.checks || {}).map((key) => [key, true])),
+    }
+    : setupCheck;
   const setupStatus = isSetupImageMode
     ? 'Image check'
-    : setupStatusLabel(setupCheck, poseAnalysis?.isRunning, Boolean(displayFrame?.src && !frameLoadError));
-  const setupChecklist = setupChecklistItems(selectedTest, setupCheck.checks);
-  const setupCountdown = setupCheck.isReady && !poseAnalysis?.isRunning && !isSetupImageMode
+    : setupStatusLabel(displaySetupCheck, isMissionRunning, Boolean((displayFrame?.src || missionPreviewActive) && !frameLoadError));
+  const setupChecklist = setupChecklistItems(selectedTest, displaySetupCheck.checks);
+  const setupCountdown = displaySetupCheck.isReady && !isMissionRunning && !isSetupImageMode
     ? Math.max(1, READY_HOLD_SECONDS - Math.floor(readyHoldSeconds))
     : null;
-  const setupMessage = poseAnalysis?.isRunning
+  const setupMessage = isMissionRunning
     ? (qualityWarning || friendlyStatus)
     : displayFrame?.src && !frameLoadError
       ? isSetupImageMode
-        ? 'Setup image checked. Use a live camera stream to start the test.'
-        : setupCheck.mainMessage
+        ? 'Setup image checked. Start the real mission with the live camera.'
+        : localizedSetupText(displaySetupCheck.mainMessage)
       : friendlyStatus;
 
   useEffect(() => {
@@ -274,14 +297,14 @@ export function AnalysisPanel({
   }, [selectedTest, poseAnalysis?.analysisResult]);
 
   useEffect(() => {
-    if (poseAnalysis?.isRunning || poseAnalysis?.analysisResult || !remoteCameraFrame?.src || isSetupImageMode || frameLoadError) {
+    if (isMissionRunning || poseAnalysis?.analysisResult || !remoteCameraFrame?.src || isSetupImageMode || frameLoadError) {
       readyStartedAtRef.current = null;
       autoStartRequestedRef.current = false;
       setReadyHoldSeconds(0);
       return undefined;
     }
 
-    if (!setupCheck.isReady) {
+    if (!displaySetupCheck.isReady) {
       readyStartedAtRef.current = null;
       autoStartRequestedRef.current = false;
       setReadyHoldSeconds(0);
@@ -305,11 +328,11 @@ export function AnalysisPanel({
   }, [
     frameLoadError,
     poseAnalysis?.analysisResult,
-    poseAnalysis?.isRunning,
+    isMissionRunning,
     remoteCameraFrame?.src,
     isSetupImageMode,
     startAnalysis,
-    setupCheck.isReady,
+    displaySetupCheck.isReady,
   ]);
 
   const handleSetupImageChange = (event) => {
@@ -335,13 +358,13 @@ export function AnalysisPanel({
   };
 
   useEffect(() => {
-    if (!poseAnalysis?.isRunning) {
+    if (!isMissionRunning) {
       badQualityStartedAtRef.current = null;
       setQualityWarning('');
       return;
     }
 
-    if (setupCheck.isReady) {
+    if (displaySetupCheck.isReady) {
       badQualityStartedAtRef.current = null;
       setQualityWarning('');
       return;
@@ -354,29 +377,28 @@ export function AnalysisPanel({
 
     const badQualitySeconds = (performance.now() - badQualityStartedAtRef.current) / 1000;
     if (badQualitySeconds >= 1.2) {
-      const mainWarning = setupCheck.warnings[0] || 'Pose detection is unstable. Please adjust your position.';
+      const mainWarning = localizedSetupText(displaySetupCheck.warnings[0]) || 'Body tracking is a little unclear. Adjust your position and try again.';
       setQualityWarning(
         mainWarning.includes('full body')
-          ? 'Pose detection is unstable. Please adjust your position.'
+          ? 'Body tracking is a little unclear. Adjust your position and try again.'
           : mainWarning
       );
     }
-  }, [poseAnalysis?.isRunning, setupCheck.isReady, setupCheck.warnings]);
+  }, [isMissionRunning, displaySetupCheck.isReady, displaySetupCheck.warnings]);
 
-  const selectedTestInfo = movementTests.find((test) => test.id === selectedTest);
   const selectedTestTitle = selectedTestInfo?.title || selectedTest?.replaceAll('_', ' ') || 'Remote Camera';
   const selectedTestDuration = selectedTestInfo?.duration || `${durationSeconds} sec`;
   const movementGuide = movementGuideContent[selectedTest] || movementGuideContent.chair_stand;
-  const canUseReferenceOverlay = selectedTest === 'standing_posture';
+  const canUseReferenceOverlay = selectedTest === 'standing_posture' || selectedTest === 'four_stage_balance';
   return (
-    <div className="analysis-layout analysis-layout--guided">
+    <div className="analysis-layout analysis-layout--guided distance-mode distance-mode--analysis">
       <SteplyCard className="arena-card arena-card--guided">
         <div className="arena-card__topbar">
           <div>
-            <div className="eyebrow">Movement Test</div>
-            <h2>{selectedTestTitle}</h2>
+            <div className="eyebrow">{isMissionRunning ? 'Balance Mission' : 'Camera Setup'}</div>
+            <h2>{isMissionRunning ? 'Today’s Balance Mission' : selectedTestTitle}</h2>
           </div>
-          <StatusPill status={status} />
+          <StatusPill status={status}>{isMissionRunning ? 'Mission in progress' : setupStatus}</StatusPill>
         </div>
 
         <div className="analysis-test-tabs analysis-test-tabs--guided" aria-label="Movement test selection">
@@ -395,7 +417,7 @@ export function AnalysisPanel({
 
         <div className="analysis-guided-body">
           <SteplyCard className="movement-guide-card">
-            <h3>{selectedTestTitle} Guide</h3>
+            <h3>{isMissionRunning ? 'Follow the stance' : 'Set up your space'}</h3>
 
             <div className="movement-guide-visual">
               <img
@@ -473,17 +495,25 @@ export function AnalysisPanel({
                 <span />
               </div>
 
+              {selectedTest === 'four_stage_balance' ? (
+                <div className={isMissionRunning ? 'foot-placement-guide foot-placement-guide--active' : 'foot-placement-guide'} aria-hidden="true">
+                  <span className="foot-placement-guide__foot foot-placement-guide__foot--back" />
+                  <span className="foot-placement-guide__foot foot-placement-guide__foot--front" />
+                  <strong>Tandem stance</strong>
+                </div>
+              ) : null}
+
               <div className="guided-camera-message">
-                <span className="guided-camera-icon">▮▶</span>
+                <span className="guided-camera-icon">▶</span>
                 <div>
                   <strong>{setupMessage}</strong>
                   <p>
-                    {poseAnalysis?.isRunning
-                      ? 'Keep moving clearly inside the camera view.'
+                    {isMissionRunning
+                      ? 'Hold this position gently and keep your eyes forward.'
                       : isSetupImageMode
-                        ? 'This image is for setup validation only.'
-                      : setupCheck.isReady
-                        ? 'The test will start automatically after the countdown.'
+                        ? 'This image is only for checking setup.'
+                      : displaySetupCheck.isReady
+                        ? 'The mission can begin when you press the ready button.'
                         : movementGuide.setup.body}
                   </p>
                 </div>
@@ -508,12 +538,12 @@ export function AnalysisPanel({
             <SteplyCard className="setup-guide-card">
               <div className="setup-guide-card__header">
                 <div>
-                  <div className="eyebrow">Setup Check</div>
+                  <div className="eyebrow">{isMissionRunning ? 'Mission Guidance' : 'Camera Setup'}</div>
                   <h3>{setupStatus}</h3>
                 </div>
-                <div className={setupCheck.isReady ? 'setup-countdown setup-countdown--ready' : 'setup-countdown'}>
-                  {setupCountdown || Math.round(setupCheck.readyScore * 100)}
-                  <span>{setupCountdown ? 'sec' : 'score'}</span>
+                <div className={displaySetupCheck.isReady ? 'setup-countdown setup-countdown--ready' : 'setup-countdown'}>
+                  {setupCountdown || Math.round(displaySetupCheck.readyScore * 100)}
+                  <span>{setupCountdown ? 'sec' : 'ready'}</span>
                 </div>
               </div>
 
@@ -523,8 +553,8 @@ export function AnalysisPanel({
                 ))}
               </ul>
 
-              {setupCheck.warnings[0] && !poseAnalysis?.isRunning ? (
-                <p className="setup-warning">{setupCheck.warnings[0]}</p>
+              {displaySetupCheck.warnings[0] && !isMissionRunning ? (
+                <p className="setup-warning">{localizedSetupText(displaySetupCheck.warnings[0])}</p>
               ) : null}
 
               {qualityWarning ? (
@@ -544,7 +574,7 @@ export function AnalysisPanel({
                   variant="secondary"
                   onClick={() => setupImageInputRef.current?.click()}
                 >
-                  Upload Setup Image
+                  Check a setup image
                 </SteplyButton>
                 <SteplyButton
                   type="button"
@@ -552,7 +582,7 @@ export function AnalysisPanel({
                   onClick={clearSetupImage}
                   disabled={!setupImageFrame}
                 >
-                  Clear Image
+                  Clear image
                 </SteplyButton>
               </div>
 
@@ -564,10 +594,10 @@ export function AnalysisPanel({
                     disabled={!canUseReferenceOverlay}
                     onChange={(event) => setShowReferenceOverlay(event.target.checked)}
                   />
-                  Standing reference overlay
+                  Standing guide overlay
                 </label>
                 <label className="reference-overlay-opacity">
-                  Opacity
+                  Overlay strength
                   <input
                     type="range"
                     min="0.15"
@@ -583,22 +613,34 @@ export function AnalysisPanel({
 
             <div className="analysis-controls analysis-controls--guided">
               <SteplyButton
-                onClick={poseAnalysis?.startAnalysis}
-                disabled={!remoteCameraFrame?.src || isSetupImageMode || poseAnalysis?.isRunning || !setupCheck.isReady}
+                onClick={() => {
+                  if (!remoteCameraFrame?.src && onPreviewMissionStart) {
+                    onPreviewMissionStart();
+                    return;
+                  }
+                  poseAnalysis?.startAnalysis?.();
+                }}
+                disabled={isSetupImageMode || isMissionRunning || (!remoteCameraFrame?.src && !onPreviewMissionStart) || !displaySetupCheck.isReady}
               >
-                {isSetupImageMode ? 'Live Camera Required' : setupCheck.isReady ? '▶ Start Analysis' : 'Waiting for Setup'}
+                {isSetupImageMode ? 'Live camera needed' : displaySetupCheck.isReady ? 'I’m Ready' : 'Adjust camera position'}
               </SteplyButton>
 
               <SteplyButton
                 variant="secondary"
-                onClick={poseAnalysis?.finishAnalysis}
-                disabled={!poseAnalysis?.isRunning}
+                onClick={() => {
+                  if (missionPreviewActive && onPreviewResult) {
+                    onPreviewResult();
+                    return;
+                  }
+                  poseAnalysis?.finishAnalysis?.();
+                }}
+                disabled={!isMissionRunning}
               >
-                Save Result
+                See Today’s Recommendation
               </SteplyButton>
 
               <SteplyButton variant="ghost" onClick={poseAnalysis?.resetAnalysis}>
-                Reset
+                Reset setup
               </SteplyButton>
 
               {SHOW_DEBUG_TOOLS ? (
@@ -623,12 +665,12 @@ export function AnalysisPanel({
 
       <aside className="analysis-side analysis-side--guided">
         <SteplyCard className="feedback-stack feedback-stack--analysis guided-status-card">
-          <div className="eyebrow">Test Status</div>
-          <h3>Current Test Status</h3>
+          <div className="eyebrow">Live Status</div>
+          <h3>Large, simple numbers</h3>
 
           <div className="guided-status-row">
-            <span>Elapsed Time</span>
-            <strong>{elapsedSeconds} / {durationSeconds} sec</strong>
+            <span>Time</span>
+            <strong>{elapsedSeconds} / {durationSeconds}s</strong>
           </div>
 
           <div className="guided-status-row">
@@ -640,14 +682,14 @@ export function AnalysisPanel({
         <TimerCircle
           value={elapsedSeconds}
           max={durationSeconds}
-          label="seconds"
+          label="sec"
           score={roundMetric(primaryValue, 0)}
         />
 
         <MetricCard
           value={roundMetric(primaryValue, 0)}
           label={primaryLabel}
-          detail={`${elapsedSeconds} / ${durationSeconds} sec`}
+          detail={`${elapsedSeconds} / ${durationSeconds}s`}
           accent
         />
 
@@ -695,12 +737,6 @@ export function AnalysisPanel({
               <li>Trunk center: {percent(state.trunkLeanScore)}</li>
               <li>Left-right symmetry: {percent(state.symmetryScore)}</li>
               <li>Sway stability: {percent(state.stabilityScore)}</li>
-              <li>
-                AI movement state:{' '}
-                {state.movementState
-                  ? `${state.movementState.label} (${percent(state.movementState.confidence)})`
-                  : '-'}
-              </li>
             </ul>
           </SteplyCard>
         ) : null}

@@ -106,7 +106,7 @@
   display: grid;
   place-items: center;
   width: 100%;
-  height: clamp(420px, 42vw, 560px);
+  height: clamp(560px, 68vh, 860px);
   min-height: 0;
   overflow: hidden;
   border: 1px solid var(--outline);
@@ -114,7 +114,7 @@
   background:
     linear-gradient(color-mix(in srgb, var(--primary) 10%, transparent) 1px, transparent 1px),
     linear-gradient(90deg, color-mix(in srgb, var(--primary) 10%, transparent) 1px, transparent 1px),
-    var(--surface-variant);
+    #0b1410;
   background-size: 42px 42px;
 }
 
@@ -127,8 +127,9 @@
 }
 
 .ar-game-camera-frame {
-  object-fit: cover;
+  object-fit: contain;
   object-position: center center;
+  background: #0b1410;
 }
 
 .ar-game-camera-placeholder {
@@ -300,9 +301,11 @@
 }
 
 .ar-game__status {
-  display: flex;
-  align-items: baseline;
+  display: grid;
+  grid-template-columns: 126px minmax(0, 1fr);
+  align-items: center;
   gap: 18px;
+  width: min(100%, 560px);
   min-height: 92px;
   padding: 16px 20px;
   border-radius: var(--radius-card);
@@ -316,11 +319,15 @@
   color: var(--primary);
   font-size: 56px;
   line-height: 1;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 
 .ar-game__status span {
   font-size: 30px;
   line-height: 1.22;
+  min-height: 2.44em;
+  overflow-wrap: anywhere;
 }
 
 .ar-game-achievement {

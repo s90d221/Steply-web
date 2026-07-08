@@ -1,5 +1,6 @@
 import { MediaPipeChairStandAnalyzer } from './chairStandAnalyzer';
 import { FourStageBalanceAnalyzer } from './fourStageBalanceAnalyzer';
+import { TimedUpAndGoAnalyzer } from './timedUpAndGoAnalyzer';
 import { PoseLandmarks, RequiredChairStandLandmarks } from './poseLandmarks';
 import { RecommendationLevels } from './recommendationRules';
 import { SteadiAssessmentRules } from './steadiRules';
@@ -175,6 +176,9 @@ class StaticStandingAnalyzer {
 export function createMovementAnalyzer(selectedTest) {
   if (selectedTest === 'four_stage_balance') {
     return new FourStageBalanceAnalyzer();
+  }
+  if (selectedTest === 'timed_up_and_go') {
+    return new TimedUpAndGoAnalyzer();
   }
   if (selectedTest === 'standing_posture' || selectedTest === 'balance_hold') {
     return new StaticStandingAnalyzer();

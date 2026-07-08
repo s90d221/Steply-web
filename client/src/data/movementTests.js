@@ -72,4 +72,25 @@ export const movementTests = [
       durationSeconds: 30,
     },
   },
+  {
+    id: 'timed_up_and_go',
+    protocolId: 'steadi_timed_up_and_go',
+    axis: 'mobility',
+    title: 'Timed Up and Go',
+    subtitle: 'Stand, walk 3 meters, turn, return, and sit',
+    duration: 'Up to 45 sec',
+    durationSeconds: 45,
+    level: 'Mobility',
+    primaryMetric: {
+      id: 'total_time_seconds',
+      label: 'TUG Time',
+      unit: 'sec',
+    },
+    completion: {
+      mode: 'timed_mobility',
+      pathMeters: 3,
+      returnPathMeters: 3,
+      maxDurationSeconds: 45,
+    },
+  },
 ];

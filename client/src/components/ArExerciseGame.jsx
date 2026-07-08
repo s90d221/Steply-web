@@ -71,6 +71,9 @@ export function ArExerciseGame({
   const gameType = activeRecommendation ? gameTypeForRecommendation(activeRecommendation) : null;
   const [gameState, setGameState] = useState(() => createInitialArGameState(gameType));
   const [stageRef, stageSize] = useElementSize();
+  const frameAspectRatio = poseAnalysis?.frameSize?.width && poseAnalysis?.frameSize?.height
+    ? poseAnalysis.frameSize.width / poseAnalysis.frameSize.height
+    : null;
 
   useEffect(() => {
     if (activeIndex >= playableRecommendations.length) setActiveIndex(0);
@@ -106,7 +109,7 @@ export function ArExerciseGame({
   }, [activeRecommendation, gameType, poseAnalysis?.landmarks]);
 
   const cameraMediaRect = useMemo(
-    () => mediaRectForObjectFit(poseAnalysis?.frameSize, stageSize, 'cover'),
+    () => mediaRectForObjectFit(poseAnalysis?.frameSize, stageSize, 'contain'),
     [poseAnalysis?.frameSize, stageSize],
   );
 
@@ -134,13 +137,14 @@ export function ArExerciseGame({
     : gameType === ArExerciseGameTypes.StarKneeExtension
       ? `${Math.round(gameState.metrics?.kneeAngleDegrees || 0)}°`
       : `${(gameState.holdMs / 1000 || 0).toFixed(1)}s`;
+  const gameTitle = activeRecommendation.arGameName || ArExerciseGameLabels[gameType];
 
   return (
-    <section className={`ar-game ar-game--${gameType}`} aria-label={ArExerciseGameLabels[gameType]}>
+    <section className={`ar-game ar-game--${gameType}`} aria-label={gameTitle}>
       <div className="ar-game__header">
         <div>
           <div className="eyebrow">Live feedback</div>
-          <h3>{ArExerciseGameLabels[gameType]}</h3>
+          <h3>{gameTitle}</h3>
         </div>
         <div className={gameState.setComplete ? 'ar-game__counter ar-game__counter--complete' : 'ar-game__counter'}>
           <span>{gameState.count}</span>
@@ -154,7 +158,11 @@ export function ArExerciseGame({
         onSelect={setActiveIndex}
       />
 
-      <div className="ar-game-stage" ref={stageRef}>
+      <div
+        className="ar-game-stage"
+        ref={stageRef}
+        style={frameAspectRatio ? { '--ar-camera-aspect-ratio': frameAspectRatio } : null}
+      >
         {remoteCameraFrame?.src ? (
           <img
             className="ar-game-camera-frame"
@@ -164,7 +172,7 @@ export function ArExerciseGame({
         ) : (
           <div className="ar-game-camera-placeholder" />
         )}
-        <PoseOverlay landmarks={poseAnalysis?.landmarks || []} frameSize={poseAnalysis?.frameSize} fit="cover" />
+        <PoseOverlay landmarks={poseAnalysis?.landmarks || []} frameSize={poseAnalysis?.frameSize} fit="contain" />
         {showDemoBubblePath ? (
           <div className="ar-game-demo-path" aria-hidden="true">
             <span />

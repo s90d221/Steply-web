@@ -189,6 +189,10 @@ function sideLegRaiseMetric(landmarks) {
       ...item,
       angleDegrees: angle,
       foot: overlayPoint(item.ankle),
+      knee: overlayPoint(item.knee),
+      hip: overlayPoint(item.hip),
+      hipWidthPercent: pose.hipWidth * 100,
+      bodyHeightPercent: pose.bodyHeight * 100,
     };
   });
   const active = sides[0].angleDegrees >= sides[1].angleDegrees ? sides[0] : sides[1];
@@ -197,6 +201,11 @@ function sideLegRaiseMetric(landmarks) {
     activeSide: active.side,
     angleDegrees: active.angleDegrees,
     foot: active.foot,
+    knee: active.knee,
+    hip: active.hip,
+    direction: active.direction,
+    hipWidthPercent: active.hipWidthPercent,
+    bodyHeightPercent: active.bodyHeightPercent,
   };
 }
 
@@ -219,7 +228,13 @@ function updateBubbleGame(previousState, landmarks, timestampMs) {
   const counted = previousState.armed && reached && !previousState.setComplete;
   const countPatch = counted ? nextCountState(previousState, timestampMs) : {};
   const foot = metric.foot || { x: 50, y: 76 };
-  const bubbleY = clamp(foot.y - 34 * progress, 8, 88);
+  const knee = metric.knee || foot;
+  const hip = metric.hip || knee;
+  const lateralOffset = clamp((metric.hipWidthPercent || 12) * 1.2, 10, 22);
+  const liftOffset = clamp((metric.bodyHeightPercent || 48) * 0.22, 12, 24);
+  const direction = metric.direction || (metric.activeSide === 'left' ? -1 : 1);
+  const targetX = clamp(hip.x + direction * lateralOffset, 8, 92);
+  const targetY = clamp(knee.y - liftOffset, 8, 82);
 
   return {
     ...previousState,
@@ -227,7 +242,7 @@ function updateBubbleGame(previousState, landmarks, timestampMs) {
     progress,
     armed: counted ? false : previousState.armed || reset,
     activeSide: metric.activeSide,
-    target: { x: foot.x, y: bubbleY },
+    target: { x: targetX, y: targetY },
     foot,
     prompt: counted
       ? 'Bubble popped. Nice control.'

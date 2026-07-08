@@ -62,6 +62,7 @@ export function recommendationLabel(level) {
 export function testLabel(testType) {
   if (testType === 'four_stage_balance') return '4-Stage Balance';
   if (testType === 'standing_posture' || testType === 'balance_hold') return 'Standing Posture';
+  if (testType === 'timed_up_and_go') return 'Timed Up and Go';
   return '30 sec Chair Stand';
 }
 
@@ -158,6 +159,10 @@ export function recommendationTemplatesForLevel(level, testType = 'chair_stand')
 }
 
 export function recommendationTemplatesForResult(result = {}) {
+  if (result.recommendationPlan?.recommendedExercises?.length) {
+    return result.recommendationPlan.recommendedExercises;
+  }
+  if (result.recommendedExercises?.length) return result.recommendedExercises;
   const otagoRecommendations = otagoRecommendationsForWeakAreas(
     result.weakAreas
       || result.weakAreaIds
@@ -193,6 +198,16 @@ export function resultFlagsFor(result, testType = 'chair_stand') {
       `Trunk center ${percent(result.trunkLeanScore)}`,
       `Foot-center balance ${percent(result.symmetryScore)}`,
       `Sway stability ${percent(result.stabilityScore)}`,
+    ];
+  }
+
+  if (testType === 'timed_up_and_go') {
+    return [
+      result.testFlags?.lossOfBalanceDetected || result.testFlags?.wallOrFurnitureSupportDetected
+        ? 'Support was used: supervised walking practice is recommended'
+        : `${primaryLabel}: ${primaryValue}s`,
+      `Gait speed estimate ${result.rawMetrics?.gaitSpeedEstimate ?? '-'} m/s`,
+      `Turn time ${result.rawMetrics?.turnDurationSec ?? '-'} sec`,
     ];
   }
 

@@ -36,6 +36,76 @@ const friendlyExerciseCopy = {
     safety: 'Lower your foot before you feel unsteady.',
     type: 'Hold',
   },
+  heel_raises: {
+    description: 'Hold a chair and rise gently onto your toes, then lower slowly.',
+    safety: 'Keep both hands close to support.',
+    type: '10 reps',
+  },
+  toe_raises: {
+    description: 'Hold support and lift the front of both feet slightly, then lower with control.',
+    safety: 'Keep your heels on the floor and use support the whole time.',
+    type: '10 reps',
+  },
+  supported_tandem_stand: {
+    description: 'Stand with one foot in front of the other while keeping support within reach.',
+    safety: 'Use a chair, counter, or rail and step out before you feel uncomfortable.',
+    type: 'Hold',
+  },
+  heel_toe_walking: {
+    description: 'Walk slowly heel-to-toe along a clear path while keeping support nearby.',
+    safety: 'Use a rail, wall, or helper when needed.',
+    type: 'Guided',
+  },
+  sideways_walking: {
+    description: 'Take small sideways steps along a counter or rail.',
+    safety: 'Keep your feet from crossing and keep one hand near support.',
+    type: 'Guided',
+  },
+  supported_one_leg_stand: {
+    description: 'Hold a chair and lift one foot slightly for a short steady hold.',
+    safety: 'Keep both hands close to support and lower the foot early if needed.',
+    type: 'Hold',
+  },
+  sit_to_stand_practice: {
+    description: 'Stand from a stable chair and sit back down at a calm pace.',
+    safety: 'Place the chair against a wall and use support if needed.',
+    type: '5 reps',
+  },
+  mini_knee_bends: {
+    description: 'Hold support, bend the knees slightly, then stand tall again.',
+    safety: 'Keep the bend small and keep your knees over your toes.',
+    type: '8 reps',
+  },
+  sit_to_stand_ladder: {
+    description: 'Do a short set, rest, then repeat only if the first set felt steady.',
+    safety: 'Rest between sets and keep the chair stable.',
+    type: 'Sets',
+  },
+  slow_sit_to_stand: {
+    description: 'Stand up, pause, then sit down slowly and quietly.',
+    safety: 'Keep the chair against a wall and use support when needed.',
+    type: '5 reps',
+  },
+  supported_walking: {
+    description: 'Walk a short clear path with a rail, wall, or helper nearby.',
+    safety: 'Keep the path clear and turn slowly.',
+    type: 'Guided',
+  },
+  figure_8_walking: {
+    description: 'Walk slowly around two clear markers in a gentle figure-8 path.',
+    safety: 'Use supervision if turning felt slow or uneven today.',
+    type: 'Guided',
+  },
+  gentle_walking_plan: {
+    description: 'Walk a short clear path at a comfortable pace.',
+    safety: 'Keep support nearby and avoid rushing.',
+    type: 'Plan',
+  },
+  balanced_bilateral_practice: {
+    description: 'Practice a gentle movement evenly on both sides.',
+    safety: 'Move slowly and repeat the check next session.',
+    type: 'Gentle',
+  },
 };
 
 function inferArMetadata(template = {}) {
@@ -89,14 +159,14 @@ function toExerciseCard(template, index) {
     ...template,
     ...arMetadata,
   };
-  const copy = friendlyExerciseCopy[template.exerciseKey] || {};
+  const copy = friendlyExerciseCopy[template.exerciseKey] || friendlyExerciseCopy[template.id] || {};
   return {
     ...normalizedTemplate,
     id: exerciseId(normalizedTemplate, index),
     number: index + 1,
     title: template.title,
     description: copy.description || template.description,
-    safety: copy.safety || template.safetyNote,
+    safety: copy.safety || template.safetyNote || template.safetyInstruction,
     minutes: Math.max(1, Math.round((template.durationSeconds || 60) / 60)),
     type: copy.type || 'Guided',
   };
@@ -120,6 +190,7 @@ export function ExercisePanel({ finalResult, remoteCameraFrame, poseAnalysis, on
   const activeExercise = dynamicExercises.find((exercise) => exercise.id === activeExerciseId) || null;
   const sourceTestLabel = finalResult?.testLabel || testLabel(finalResult?.testType);
   const activeGameType = activeExercise ? gameTypeForRecommendation(activeExercise) : null;
+  const safetyGateText = finalResult?.recommendationPlan?.gameDisabledReason || null;
 
   useEffect(() => {
     setActiveExerciseId('');
@@ -132,7 +203,8 @@ export function ExercisePanel({ finalResult, remoteCameraFrame, poseAnalysis, on
           <div className="eyebrow">Exercise Recommendations</div>
           <h2>{activeExercise ? `${activeExercise.title} AR Game` : 'Choose an exercise to start'}</h2>
           <p>
-            These games match today’s {sourceTestLabel} insight. Start one recommended exercise, move at a safe pace, and aim for one calm 10-rep set.
+            These games match today’s {sourceTestLabel} insight. Start one recommended exercise, move at a safe pace, and aim for one calm set.
+            {safetyGateText ? ` ${safetyGateText}` : ''}
           </p>
         </div>
         <div className="recommendation-time">One set <strong>10</strong> reps</div>
@@ -160,7 +232,7 @@ export function ExercisePanel({ finalResult, remoteCameraFrame, poseAnalysis, on
       <div className="exercise-grid">
         {dynamicExercises.map((exercise) => {
           const isActive = exercise.id === activeExerciseId;
-          const isPlayable = Boolean(gameTypeForRecommendation(exercise));
+          const isPlayable = exercise.gameAllowed !== false && Boolean(gameTypeForRecommendation(exercise));
           return (
             <ExerciseCard
               key={exercise.id}
@@ -173,7 +245,7 @@ export function ExercisePanel({ finalResult, remoteCameraFrame, poseAnalysis, on
                   onClick={() => setActiveExerciseId(exercise.id)}
                   disabled={!isPlayable}
                 >
-                  {isActive ? 'AR Game Open' : 'Start'}
+                  {!isPlayable ? 'Supported Practice' : isActive ? 'AR Game Open' : 'Start'}
                 </SteplyButton>
               )}
             />

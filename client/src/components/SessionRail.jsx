@@ -19,6 +19,11 @@ export function SessionRail({
   const session = sessionBundle?.session;
   const profile = session?.profile;
   const profileName = profile?.displayName || profile?.name;
+  const createButtonLabel = busy
+    ? 'Creating...'
+    : session
+      ? 'Refresh QR Code'
+      : 'Create QR Code';
 
   return (
     <aside className={`session-rail ${className}`} aria-label="Mobile connection panel">
@@ -35,7 +40,7 @@ export function SessionRail({
       {compact ? (
         <>
           <SteplyButton onClick={onCreateSession} disabled={busy}>
-            {busy ? 'Creating...' : session ? 'Create New QR Session' : 'Create QR Session'}
+            {createButtonLabel}
           </SteplyButton>
           {error ? <div className="inline-error" role="alert">{error}</div> : null}
         </>
@@ -45,7 +50,7 @@ export function SessionRail({
           <h2>QR Camera Session</h2>
           <p>Create a local QR session so the mobile app can link its profile and stream camera frames to this PC.</p>
           <SteplyButton onClick={onCreateSession} disabled={busy}>
-            {busy ? 'Creating...' : session ? 'Create New QR Session' : 'Create QR Session'}
+            {createButtonLabel}
           </SteplyButton>
           {error ? <div className="inline-error" role="alert">{error}</div> : null}
         </SteplyCard>
@@ -69,9 +74,11 @@ export function SessionRail({
             {sessionBundle?.qrPayload || 'Create a QR session to show the payload for the mobile app.'}
           </div>
         ) : null}
-        <SteplyButton variant="secondary" onClick={onCopyPayload} disabled={!sessionBundle?.qrPayload}>
-          Copy Payload
-        </SteplyButton>
+        {!compact ? (
+          <SteplyButton variant="secondary" onClick={onCopyPayload} disabled={!sessionBundle?.qrPayload}>
+            Copy Payload
+          </SteplyButton>
+        ) : null}
       </SteplyCard>
 
       {!compact ? (

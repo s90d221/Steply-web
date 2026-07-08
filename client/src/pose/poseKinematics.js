@@ -199,6 +199,115 @@ export function calculateBodyCenter(
   return Number.isFinite(center.x) && Number.isFinite(center.y) ? center : null;
 }
 
+export function calculateBodyBox(landmarks = [], { minVisibility = DEFAULT_KINEMATIC_MIN_VISIBILITY } = {}) {
+  const visible = (landmarks || []).filter((point) => isVisibleLandmark(point, minVisibility));
+  if (!visible.length) return null;
+  const xs = visible.map((point) => point.x).filter(Number.isFinite);
+  const ys = visible.map((point) => point.y).filter(Number.isFinite);
+  if (!xs.length || !ys.length) return null;
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  return {
+    minX,
+    maxX,
+    minY,
+    maxY,
+    width: maxX - minX,
+    height: maxY - minY,
+  };
+}
+
+export function calculateShoulderCenter(landmarks = [], { minVisibility = DEFAULT_KINEMATIC_MIN_VISIBILITY } = {}) {
+  const points = landmarkMap(landmarks);
+  return midpoint(
+    visibleLandmark(points, PoseLandmarks.LeftShoulder, minVisibility),
+    visibleLandmark(points, PoseLandmarks.RightShoulder, minVisibility),
+  );
+}
+
+export function calculatePelvisCenter(landmarks = [], { minVisibility = DEFAULT_KINEMATIC_MIN_VISIBILITY } = {}) {
+  const points = landmarkMap(landmarks);
+  return midpoint(
+    visibleLandmark(points, PoseLandmarks.LeftHip, minVisibility),
+    visibleLandmark(points, PoseLandmarks.RightHip, minVisibility),
+  );
+}
+
+export function calculateTrunkCenter(landmarks = [], { minVisibility = DEFAULT_KINEMATIC_MIN_VISIBILITY } = {}) {
+  return midpoint(
+    calculateShoulderCenter(landmarks, { minVisibility }),
+    calculatePelvisCenter(landmarks, { minVisibility }),
+  );
+}
+
+export function calculateBodyHeight(landmarks = [], { minVisibility = DEFAULT_KINEMATIC_MIN_VISIBILITY } = {}) {
+  const box = calculateBodyBox(landmarks, { minVisibility });
+  return box?.height ?? null;
+}
+
+export function calculateFootCenter(landmarksOrMap, side, { minVisibility = DEFAULT_KINEMATIC_MIN_VISIBILITY } = {}) {
+  const points = landmarksOrMap instanceof Map ? landmarksOrMap : landmarkMap(landmarksOrMap);
+  const names = side === 'left'
+    ? [PoseLandmarks.LeftAnkle, PoseLandmarks.LeftHeel, PoseLandmarks.LeftFootIndex]
+    : [PoseLandmarks.RightAnkle, PoseLandmarks.RightHeel, PoseLandmarks.RightFootIndex];
+  const visible = names.map((name) => visibleLandmark(points, name, minVisibility)).filter(Boolean);
+  if (!visible.length) return null;
+  const center = {
+    x: averageNumbers(visible.map((point) => point.x)),
+    y: averageNumbers(visible.map((point) => point.y)),
+    z: averageNumbers(visible.map((point) => point.z).filter(Number.isFinite)),
+    visibility: averageNumbers(visible.map((point) => visibilityOf(point, 0))),
+    sampleCount: visible.length,
+  };
+  return Number.isFinite(center.x) && Number.isFinite(center.y) ? center : null;
+}
+
+export function calculateBaseOfSupport(landmarks = [], { minVisibility = DEFAULT_KINEMATIC_MIN_VISIBILITY } = {}) {
+  const points = landmarkMap(landmarks);
+  const leftFoot = calculateFootCenter(points, 'left', { minVisibility });
+  const rightFoot = calculateFootCenter(points, 'right', { minVisibility });
+  if (!leftFoot && !rightFoot) return null;
+  if (!leftFoot || !rightFoot) {
+    const foot = leftFoot || rightFoot;
+    return {
+      center: foot,
+      width: 0,
+      leftFoot,
+      rightFoot,
+      bothFeetVisible: false,
+    };
+  }
+  return {
+    center: midpoint(leftFoot, rightFoot),
+    width: distance(leftFoot, rightFoot),
+    leftFoot,
+    rightFoot,
+    bothFeetVisible: true,
+  };
+}
+
+export function calculateJointAngle(first, center, third) {
+  return calculateAngleDegrees(first, center, third);
+}
+
+export function normalizeByBodyHeight(value, landmarks = [], options = {}) {
+  if (!Number.isFinite(value)) return null;
+  const height = calculateBodyHeight(landmarks, options);
+  return height && height > 0 ? value / height : null;
+}
+
+export function normalizeByShoulderWidth(value, landmarks = [], { minVisibility = DEFAULT_KINEMATIC_MIN_VISIBILITY } = {}) {
+  if (!Number.isFinite(value)) return null;
+  const points = landmarkMap(landmarks);
+  const width = distance(
+    visibleLandmark(points, PoseLandmarks.LeftShoulder, minVisibility),
+    visibleLandmark(points, PoseLandmarks.RightShoulder, minVisibility),
+  );
+  return width && width > 0 ? value / width : null;
+}
+
 export function calculateTrunkLean(landmarks = [], { minVisibility = DEFAULT_KINEMATIC_MIN_VISIBILITY } = {}) {
   const points = landmarkMap(landmarks);
   const leftShoulder = visibleLandmark(points, PoseLandmarks.LeftShoulder, minVisibility);

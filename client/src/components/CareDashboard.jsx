@@ -114,6 +114,22 @@ function DashboardView({ participants, onSelect }) {
 
 function ParticipantDetail({ participant, onBack }) {
   if (!participant) return null;
+  const failedCriteria = participant.failedCriteria || (
+    participant.tandemHoldSeconds < 10
+      ? ['Tandem stance under 10 seconds']
+      : participant.riskCategory === 'Moderate'
+        ? ['Repeated mild weakness signal']
+        : []
+  );
+  const professionalReviewSuggested = participant.professionalReviewSuggested
+    ?? participant.riskCategory === 'Needs Review';
+  const trendWarning = participant.trendWarning || (
+    participant.scoreChange < -8
+      ? 'Recent 5-session trend declined enough to review next action.'
+      : participant.adherence < 50
+        ? 'Exercise adherence is below 50% for the week.'
+        : 'Trend is stable enough to continue planned practice.'
+  );
 
   return (
     <div className="participant-detail-screen">
@@ -159,6 +175,20 @@ function ParticipantDetail({ participant, onBack }) {
             {participant.weakAreas.map((weakArea) => <span key={weakArea}>{weakArea}</span>)}
           </div>
           <TrendBars values={participant.trend} />
+        </SteplyCard>
+
+        <SteplyCard className="detail-section">
+          <div className="eyebrow">Screening Rules</div>
+          <h3>{failedCriteria.length ? 'Failed criteria' : 'No failed cutoff today'}</h3>
+          <div className="weak-area-chip-list">
+            {(failedCriteria.length ? failedCriteria : ['Continue trend monitoring']).map((criterion) => (
+              <span key={criterion}>{criterion}</span>
+            ))}
+          </div>
+          <p>{trendWarning}</p>
+          <StatusPill status={professionalReviewSuggested ? 'recheck' : 'practice_needed'}>
+            {professionalReviewSuggested ? 'Professional review suggested' : 'Repeat screening next session'}
+          </StatusPill>
         </SteplyCard>
 
         <SteplyCard className="detail-section detail-section--action">

@@ -1,10 +1,28 @@
 import { WeakAreaIds } from '../pose/weakAreaRules';
 import { OtagoExerciseCatalog, OtagoExerciseKeys } from '../pose/otagoRecommendations';
+import {
+  AssessmentExerciseLibrary,
+  FallRiskLevels,
+  OlderAdultFallRiskLabels,
+  WeaknessIds as RuleWeaknessIds,
+  WeaknessLabels,
+} from '../pose/assessmentRules';
 
 export const weakAreaLabels = {
   [WeakAreaIds.AnkleStrategyProprioception]: 'ankle balance control',
   [WeakAreaIds.HipAbductorMediolateralControl]: 'side hip stability',
   [WeakAreaIds.LowerLimbMuscularEndurance]: 'lower-body endurance',
+  [RuleWeaknessIds.BalanceControl]: WeaknessLabels[RuleWeaknessIds.BalanceControl],
+  [RuleWeaknessIds.AnkleStrategyProprioception]: WeaknessLabels[RuleWeaknessIds.AnkleStrategyProprioception],
+  [RuleWeaknessIds.HipAbductorMediolateralControl]: WeaknessLabels[RuleWeaknessIds.HipAbductorMediolateralControl],
+  [RuleWeaknessIds.LowerBodyEndurance]: WeaknessLabels[RuleWeaknessIds.LowerBodyEndurance],
+  [RuleWeaknessIds.QuadricepsStrength]: WeaknessLabels[RuleWeaknessIds.QuadricepsStrength],
+  [RuleWeaknessIds.HipExtensorGluteStrength]: WeaknessLabels[RuleWeaknessIds.HipExtensorGluteStrength],
+  [RuleWeaknessIds.EccentricControl]: WeaknessLabels[RuleWeaknessIds.EccentricControl],
+  [RuleWeaknessIds.DynamicMobility]: WeaknessLabels[RuleWeaknessIds.DynamicMobility],
+  [RuleWeaknessIds.GaitStability]: WeaknessLabels[RuleWeaknessIds.GaitStability],
+  [RuleWeaknessIds.TurningControl]: WeaknessLabels[RuleWeaknessIds.TurningControl],
+  [RuleWeaknessIds.AsymmetryNeedsReview]: WeaknessLabels[RuleWeaknessIds.AsymmetryNeedsReview],
 };
 
 export const weakAreaSupportMessages = {
@@ -14,6 +32,18 @@ export const weakAreaSupportMessages = {
     'Your body swayed a little more when standing sideways today. Let’s wake up your side hip muscles together.',
   [WeakAreaIds.LowerLimbMuscularEndurance]:
     'Sit-to-stand movement looked a little more effortful today. Let’s build steady leg endurance with a calm pace.',
+  [RuleWeaknessIds.HipAbductorMediolateralControl]:
+    'Your body swayed a little more from side to side today. Let’s wake up your side hip muscles with a short exercise game.',
+  [RuleWeaknessIds.AnkleStrategyProprioception]:
+    'The first few seconds were a little unsteady today. We’ll practice gentle ankle and balance control.',
+  [RuleWeaknessIds.LowerBodyEndurance]:
+    'Your legs slowed down near the end. We’ll practice a gentle strength game at a safe pace.',
+  [RuleWeaknessIds.HipExtensorGluteStrength]:
+    'Standing up took a little more effort today. Let’s build leg strength with a short chair exercise.',
+  [RuleWeaknessIds.TurningControl]:
+    'Turning took a little longer today. Let’s practice a slow, steady walking path.',
+  [RuleWeaknessIds.GaitStability]:
+    'Your steps were shorter today. We’ll work on steady walking with a simple path game.',
 };
 
 export function displayWeakAreaLabel(value) {
@@ -22,35 +52,120 @@ export function displayWeakAreaLabel(value) {
 }
 
 export function buildDemoFinalResult(testType = 'four_stage_balance') {
-  const weakAreaId = WeakAreaIds.HipAbductorMediolateralControl;
-  const recommendation = {
-    ...OtagoExerciseCatalog[OtagoExerciseKeys.SideHipStrengthening],
+  const weakAreaId = testType === 'timed_up_and_go'
+    ? RuleWeaknessIds.TurningControl
+    : testType === 'chair_stand'
+      ? RuleWeaknessIds.HipExtensorGluteStrength
+      : RuleWeaknessIds.HipAbductorMediolateralControl;
+  const recommendation = testType === 'timed_up_and_go'
+    ? AssessmentExerciseLibrary.figure_8_walking
+    : testType === 'chair_stand'
+      ? AssessmentExerciseLibrary.sit_to_stand_practice
+      : {
+        ...OtagoExerciseCatalog[OtagoExerciseKeys.SideHipStrengthening],
+        id: 'side_hip_strengthening',
+        name: 'Side Hip Strengthening',
+        arGameName: 'Side Leg Bubble Pop',
+        reason: 'Side-to-side sway was higher during balance stance.',
+      };
+  const normalizedRecommendation = {
+    ...recommendation,
+    exerciseKey: recommendation.exerciseKey || recommendation.id || recommendation.exerciseKey,
+    title: recommendation.title || recommendation.name,
+    description: recommendation.description || recommendation.seniorInstruction,
+    safetyNote: recommendation.safetyNote || recommendation.safetyInstruction,
     weakAreaId,
     recommendationRole: 'primary',
+    reason: recommendation.reason || 'This exercise matches today’s movement pattern.',
+    gameAllowed: true,
   };
+  const primaryValue = testType === 'timed_up_and_go'
+    ? 13.4
+    : testType === 'chair_stand'
+      ? 9
+      : 8.6;
+  const primaryLabel = testType === 'timed_up_and_go'
+    ? 'TUG Time'
+    : testType === 'chair_stand'
+      ? 'Chair Stands'
+      : 'Hold Time';
 
   return {
     sessionId: 'visual-review-session',
     userId: 'demo-local-profile',
     testType,
-    testLabel: testType === 'chair_stand' ? '30 sec Chair Stand' : '4-Stage Balance',
+    testLabel: testType === 'timed_up_and_go'
+      ? 'Timed Up and Go'
+      : testType === 'chair_stand'
+        ? '30 sec Chair Stand'
+        : '4-Stage Balance',
     score: 82,
     confidence: 0.91,
-    primaryLabel: testType === 'chair_stand' ? 'Chair Stands' : 'Hold Time',
-    primaryValue: testType === 'chair_stand' ? 9 : 8.6,
+    primaryLabel,
+    primaryValue,
     repetitionCount: testType === 'chair_stand' ? 9 : 0,
     stabilityScore: 0.78,
     trunkLeanScore: 0.84,
     symmetryScore: 0.76,
     recommendationLevel: 'practice_needed',
+    fallRiskLevel: FallRiskLevels.Moderate,
+    olderAdultLabel: OlderAdultFallRiskLabels[FallRiskLevels.Moderate],
+    primaryWeakness: weakAreaId,
+    primaryWeaknessLabel: weakAreaLabels[weakAreaId],
+    secondaryWeaknesses: [],
+    weaknessScores: {
+      ankleStrategyProprioception: testType === 'four_stage_balance' ? 0.38 : 0.12,
+      hipAbductorMediolateralControl: testType === 'four_stage_balance' ? 0.72 : 0.18,
+      lowerBodyEndurance: testType === 'chair_stand' ? 0.64 : 0.18,
+      quadricepsStrength: testType === 'chair_stand' ? 0.51 : 0.12,
+      hipExtensorGluteStrength: testType === 'chair_stand' ? 0.7 : 0.14,
+      eccentricControl: 0.25,
+      dynamicMobility: testType === 'timed_up_and_go' ? 0.58 : 0.18,
+      gaitStability: testType === 'timed_up_and_go' ? 0.44 : 0.16,
+      turningControl: testType === 'timed_up_and_go' ? 0.72 : 0.16,
+      asymmetryNeedsReview: 0.18,
+      balanceControl: testType === 'four_stage_balance' ? 0.56 : 0.12,
+    },
     weakAreas: [{ id: weakAreaId, label: weakAreaLabels[weakAreaId] }],
-    recommendations: [recommendation],
+    recommendations: [normalizedRecommendation],
+    recommendationPlan: {
+      reason: normalizedRecommendation.reason,
+      safetyGates: [],
+      dynamicGameAllowed: true,
+      recommendedExercises: [normalizedRecommendation],
+    },
+    rawMetrics: testType === 'timed_up_and_go'
+      ? {
+        totalTimeSec: 13.4,
+        turnDurationSec: 3.4,
+        gaitSpeedEstimate: 0.72,
+        wallOrFurnitureSupportDetected: false,
+        confidenceScore: 0.91,
+      }
+      : testType === 'chair_stand'
+        ? {
+          completedReps: 9,
+          officialClinicalReps: 9,
+          trunkForwardLeanPeak: 22,
+          armAssistDetected: false,
+          confidenceScore: 0.91,
+        }
+        : {
+          tandemHoldSec: 8.6,
+          trunkSwayML: 0.052,
+          handSupportDetected: false,
+          confidenceScore: 0.91,
+        },
     flags: [
-      'Tandem hold: 8.6 seconds',
-      'Side-to-side sway increased near the end',
+      testType === 'timed_up_and_go' ? 'TUG time: 13.4 seconds' : testType === 'chair_stand' ? 'Chair stands: 9' : 'Tandem hold: 8.6 seconds',
+      testType === 'timed_up_and_go' ? 'Turning took a little longer today' : testType === 'chair_stand' ? 'Forward lean increased during standing' : 'Side-to-side sway increased near the end',
       'Full-body view was clear',
     ],
     message: weakAreaSupportMessages[weakAreaId],
+    seniorMessage: weakAreaSupportMessages[weakAreaId],
+    staffMessage: 'Moderate screening signal. Recommend matched exercise practice and repeat check next session.',
+    professionalNotes: 'Rule-based screening support only. Review if the same pattern repeats or combines with decline on another assessment.',
+    trendWarnings: [],
     completedAt: Date.now(),
   };
 }
@@ -201,6 +316,10 @@ export const weeklyReport = {
   overallStatus: 'Needs a little more support this week',
   changeFromLastWeek: 'Balance hold decreased by 1.8 seconds',
   weakArea: 'side hip stability',
+  failedCriteria: ['Tandem stance under 10 seconds', 'Chair Stand below age/sex threshold'],
+  trendWarning: 'Tandem hold declined from the recent 5-session average.',
+  recommendedNextAction: 'Use side hip strengthening and repeat balance plus chair-stand screening next session.',
+  professionalReviewSuggested: true,
   exerciseAdherence: 58,
   familyAction:
     'Sit-to-stand performance has decreased for three sessions. Consider checking in and encouraging a clinic visit if this continues.',

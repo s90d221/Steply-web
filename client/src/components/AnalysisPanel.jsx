@@ -9,8 +9,12 @@ import standingPostureGuide from '../assets/movement-guides/standing-posture-che
 import chairStandGuide from '../assets/movement-guides/chair-stand-check.png';
 import standingReferenceOverlay from '../assets/movement-guides/standing-reference-overlay.png';
 
-// Set to true when local pose-worker instrumentation is needed.
-const SHOW_DEBUG_TOOLS = false;
+// Developer-only: add ?poseDebug=1 while running Vite locally.
+const SHOW_DEBUG_TOOLS = Boolean(
+  import.meta.env.DEV
+    && typeof window !== 'undefined'
+    && new URLSearchParams(window.location.search).get('poseDebug') === '1'
+);
 
 const movementGuideContent = {
   four_stage_balance: {
@@ -70,6 +74,25 @@ const movementGuideContent = {
       ],
     },
   },
+  timed_up_and_go: {
+    image: chairStandGuide,
+    alt: 'Timed Up and Go setup with chair and walking path',
+    steps: [
+      'Sit in a stable chair with a clear 3-meter path in front of you.',
+      'On start, stand up, walk to the mark, turn slowly, walk back, and sit down.',
+      'Keep a wall, rail, or helper nearby if you usually use support.',
+    ],
+    tip: 'Steply records the time and looks for walking, turning, and return-to-sit patterns.',
+    setup: {
+      title: 'Path setup',
+      body: 'Place the phone where the chair and walking path are easy to see.',
+      points: [
+        'Clear the path before starting.',
+        'Mark the turn point at 3 meters or 10 feet.',
+        'Use your usual support if you need it.',
+      ],
+    },
+  },
 };
 
 function percent(value) {
@@ -80,6 +103,7 @@ function percent(value) {
 function phaseLabel(phase) {
   if (phase === 'standing') return 'Standing';
   if (phase === 'rising') return 'Rising';
+  if (phase === 'lowering') return 'Lowering';
   if (phase === 'seated') return 'Seated';
   if (phase === 'walking') return 'Walking';
   if (phase === 'unknown') return 'Searching';
@@ -108,19 +132,19 @@ function setupChecklistItems(testType, checks) {
       { label: 'One person in view', passed: checks.singlePersonStable },
       { label: 'Facing the camera', passed: checks.correctDirection },
       { label: 'Full body visible', passed: checks.fullBodyVisible },
-      { label: 'Feet inside the frame', passed: checks.lowerBodyVisible },
+      { label: 'Both feet visible', passed: checks.feetVisible ?? checks.lowerBodyVisible },
       { label: 'Good camera distance', passed: checks.properDistance },
-      { label: 'Clear body tracking', passed: checks.goodVisibility && checks.stablePose },
+      { label: 'Clear, steady tracking', passed: checks.goodVisibility && checks.stablePose && checks.cameraStill },
     ];
   }
 
   return [
     { label: 'One person in view', passed: checks.singlePersonStable },
-    { label: 'Side view ready', passed: checks.correctDirection },
-    { label: 'Chair and body visible', passed: checks.fullBodyVisible },
-    { label: 'Knees and ankles visible', passed: checks.lowerBodyVisible },
+    { label: testType === 'timed_up_and_go' ? 'Path view ready' : 'Side view ready', passed: checks.correctDirection },
+    { label: testType === 'timed_up_and_go' ? 'Chair and path visible' : 'Chair and body visible', passed: checks.fullBodyVisible },
+    { label: 'Knees, ankles, and feet visible', passed: checks.feetVisible ?? checks.lowerBodyVisible },
     { label: 'Good camera distance', passed: checks.properDistance },
-    { label: 'Movement tracking is clear', passed: checks.goodVisibility && checks.stablePose },
+    { label: 'Movement tracking is clear', passed: checks.goodVisibility && checks.stablePose && checks.cameraStill },
   ];
 }
 
@@ -140,6 +164,9 @@ function localizedSetupText(message) {
   if (text.includes('only one person')) return 'Keep only one person in the camera view.';
   if (text.includes('full body')) return 'Step back a little so your full body is visible.';
   if (text.includes('knees and ankles')) return 'Adjust the camera angle so your knees and ankles are visible.';
+  if (text.includes('both feet')) return 'Tilt the camera down so both feet are visible.';
+  if (text.includes('camera can see')) return 'Stand where the camera can see your whole body.';
+  if (text.includes('Hold still gently')) return 'Hold still gently while the camera checks your position.';
   if (text.includes('brighter space') || text.includes('camera steady')) return 'Use a brighter space and keep the camera steady.';
   if (text.includes('Stand sideways')) return 'Turn sideways so sitting and standing are easy to see.';
   if (text.includes('Stand where')) return 'Stand where your full body is visible.';
@@ -175,7 +202,12 @@ export function AnalysisPanel({
 
   const displayFrame = setupImageFrame || remoteCameraFrame;
   const isSetupImageMode = Boolean(setupImageFrame?.src);
-  const score = displayFrame?.src ? Math.round((state.confidence || 0) * 100) : 0;
+  const trackingQualityScore = poseAnalysis?.trackingQuality?.trackingQualityScore
+    ?? poseAnalysis?.cameraReadiness?.trackingQualityScore
+    ?? state.trackingQualityScore
+    ?? state.confidence
+    ?? 0;
+  const score = displayFrame?.src ? Math.round(trackingQualityScore * 100) : 0;
   const status = state.warningMessage ? 'practice_needed' : statusFromScore(score || 72);
   const durationSeconds = state.durationSeconds || poseAnalysis?.durationSeconds || result?.durationSeconds || 30;
 
@@ -242,15 +274,18 @@ export function AnalysisPanel({
     ? 'Setup image preview'
     : frameLoadError || remoteCameraStatus || 'Waiting for phone camera';
   const friendlyStatus = missionPreviewActive
-    ? 'Hold this position gently. You’re doing well. Keep your eyes forward.'
+    ? state.postureMessage || 'Hold this position gently. You’re doing well. Keep your eyes forward.'
     : userFriendlyStatus(state, displayFrame, frameLoadError);
   const startAnalysis = poseAnalysis?.startAnalysis;
-  const setupCheck = useMemo(() => evaluateSetupReadiness({
-    landmarks: poseAnalysis?.landmarks || [],
-    testType: selectedTest,
-    previousSample: previousSetupSampleRef.current,
-    strictStability: !isMissionRunning,
-  }), [isMissionRunning, poseAnalysis?.landmarks, selectedTest]);
+  const setupCheck = useMemo(() => {
+    if (poseAnalysis?.cameraReadiness) return poseAnalysis.cameraReadiness;
+    return evaluateSetupReadiness({
+      landmarks: poseAnalysis?.landmarks || [],
+      testType: selectedTest,
+      previousSample: previousSetupSampleRef.current,
+      strictStability: !isMissionRunning,
+    });
+  }, [isMissionRunning, poseAnalysis?.cameraReadiness, poseAnalysis?.landmarks, selectedTest]);
   const displaySetupCheck = missionPreviewActive
     ? {
       ...setupCheck,
@@ -358,13 +393,26 @@ export function AnalysisPanel({
   };
 
   useEffect(() => {
+    if (missionPreviewActive) {
+      badQualityStartedAtRef.current = null;
+      setQualityWarning('');
+      return;
+    }
+
     if (!isMissionRunning) {
       badQualityStartedAtRef.current = null;
       setQualityWarning('');
       return;
     }
 
-    if (displaySetupCheck.isReady) {
+    const qualityScore = poseAnalysis?.trackingQuality?.trackingQualityScore
+      ?? displaySetupCheck.trackingQualityScore
+      ?? state.trackingQualityScore
+      ?? state.confidence
+      ?? 0;
+    const trackingBlocked = qualityScore < 0.6 || state.trackingPaused;
+
+    if (!trackingBlocked && displaySetupCheck.isReady) {
       badQualityStartedAtRef.current = null;
       setQualityWarning('');
       return;
@@ -377,14 +425,26 @@ export function AnalysisPanel({
 
     const badQualitySeconds = (performance.now() - badQualityStartedAtRef.current) / 1000;
     if (badQualitySeconds >= 1.2) {
-      const mainWarning = localizedSetupText(displaySetupCheck.warnings[0]) || 'Body tracking is a little unclear. Adjust your position and try again.';
+      const mainWarning = trackingBlocked
+        ? "Let's adjust the camera and try again."
+        : localizedSetupText(displaySetupCheck.warnings[0]) || 'Body tracking is a little unclear. Adjust your position and try again.';
       setQualityWarning(
         mainWarning.includes('full body')
           ? 'Body tracking is a little unclear. Adjust your position and try again.'
           : mainWarning
       );
     }
-  }, [isMissionRunning, displaySetupCheck.isReady, displaySetupCheck.warnings]);
+  }, [
+    isMissionRunning,
+    missionPreviewActive,
+    displaySetupCheck.isReady,
+    displaySetupCheck.trackingQualityScore,
+    displaySetupCheck.warnings,
+    poseAnalysis?.trackingQuality?.trackingQualityScore,
+    state.confidence,
+    state.trackingPaused,
+    state.trackingQualityScore,
+  ]);
 
   const selectedTestTitle = selectedTestInfo?.title || selectedTest?.replaceAll('_', ' ') || 'Remote Camera';
   const selectedTestDuration = selectedTestInfo?.duration || `${durationSeconds} sec`;
@@ -395,8 +455,8 @@ export function AnalysisPanel({
       <SteplyCard className="arena-card arena-card--guided">
         <div className="arena-card__topbar">
           <div>
-            <div className="eyebrow">{isMissionRunning ? 'Balance Mission' : 'Camera Setup'}</div>
-            <h2>{isMissionRunning ? 'Today’s Balance Mission' : selectedTestTitle}</h2>
+            <div className="eyebrow">{isMissionRunning ? 'Movement Mission' : 'Camera Setup'}</div>
+            <h2>{isMissionRunning ? 'Today’s Movement Mission' : selectedTestTitle}</h2>
           </div>
           <StatusPill status={status}>{isMissionRunning ? 'Mission in progress' : setupStatus}</StatusPill>
         </div>
@@ -468,7 +528,12 @@ export function AnalysisPanel({
                       style={{ opacity: referenceOverlayOpacity }}
                     />
                   ) : null}
-                  <PoseOverlay landmarks={poseAnalysis?.landmarks || []} frameSize={poseAnalysis?.frameSize} />
+                  <PoseOverlay
+                    landmarks={poseAnalysis?.landmarks || []}
+                    rawLandmarks={SHOW_DEBUG_TOOLS ? poseAnalysis?.rawLandmarks || [] : []}
+                    showRaw={SHOW_DEBUG_TOOLS}
+                    frameSize={poseAnalysis?.frameSize}
+                  />
                 </div>
               ) : (
                 <>
@@ -529,6 +594,16 @@ export function AnalysisPanel({
                 />
                 {cameraStatusText}
               </div>
+
+              {SHOW_DEBUG_TOOLS ? (
+                <div className="pose-debug-overlay">
+                  <strong>Pose Debug</strong>
+                  <span>Quality {percent(trackingQualityScore)}</span>
+                  <span>Full body {displaySetupCheck.fullBodyVisible ? 'yes' : 'no'}</span>
+                  <span>Feet {displaySetupCheck.feetVisible ? 'yes' : 'no'}</span>
+                  <span>Mode {poseAnalysis?.smoothingStats?.mode || '-'}</span>
+                </div>
+              ) : null}
             </div>
 
             <p className="coach-message coach-message--guided">
@@ -697,21 +772,35 @@ export function AnalysisPanel({
           <SteplyCard className="feedback-stack feedback-stack--result-mini">
             <div className="eyebrow">Final Result</div>
             <h3>{resultLevel}</h3>
-            <ul>
-              <li>
-                {result.primaryLabel || 'Final reps'}:{' '}
-                {roundMetric(result.primaryValue ?? result.repetitionCount, 0)}
-              </li>
-              <li>
-                Average pace:{' '}
-                {result.averageRepSeconds ? `${result.averageRepSeconds.toFixed(1)} sec/rep` : '-'}
-              </li>
-              <li>
-                {result.armUseDisqualified
-                  ? 'Arm support detected: official score is 0'
-                  : 'No arm-support disqualification'}
-              </li>
-            </ul>
+            {result.invalid || result.testFlags?.cameraSetupNeeded ? (
+              <ul>
+                <li>Camera check needed</li>
+                <li>Tracking quality: {percent(result.trackingQualityScore ?? result.confidence)}</li>
+                <li>No screening result was generated.</li>
+              </ul>
+            ) : result.testType === 'timed_up_and_go' ? (
+              <ul>
+                <li>TUG time: {roundMetric(result.primaryValue, 1)} sec</li>
+                <li>Turn time: {result.tugResult?.turnDurationSec ? `${result.tugResult.turnDurationSec.toFixed(1)} sec` : '-'}</li>
+                <li>{result.tugResult?.wallOrFurnitureSupportDetected ? 'Support was observed during walking' : 'No support use observed'}</li>
+              </ul>
+            ) : (
+              <ul>
+                <li>
+                  {result.primaryLabel || 'Final reps'}:{' '}
+                  {roundMetric(result.primaryValue ?? result.repetitionCount, 0)}
+                </li>
+                <li>
+                  Average pace:{' '}
+                  {result.averageRepSeconds ? `${result.averageRepSeconds.toFixed(1)} sec/rep` : '-'}
+                </li>
+                <li>
+                  {result.armUseDisqualified
+                    ? 'Arm support was used, so supported strengthening is recommended'
+                    : 'No arm-support note'}
+                </li>
+              </ul>
+            )}
           </SteplyCard>
         ) : null}
 
@@ -730,9 +819,17 @@ export function AnalysisPanel({
             <ul>
               <li>Phase: {phaseLabel(state.phase)}</li>
               <li>Pose confidence: {percent(state.confidence)}</li>
+              <li>Tracking quality: {percent(trackingQualityScore)}</li>
+              <li>Quality level: {poseAnalysis?.trackingQuality?.level || '-'}</li>
+              <li>Full body: {displaySetupCheck.fullBodyVisible ? 'yes' : 'no'}</li>
+              <li>Feet visible: {displaySetupCheck.feetVisible ? 'yes' : 'no'}</li>
+              <li>Camera still: {displaySetupCheck.cameraStill ? 'yes' : 'no'}</li>
               <li>Worker: {poseAnalysis?.workerStatus || 'booting'}</li>
               <li>Frame size: {frameKb} KB</li>
               <li>Frame #{remoteCameraFrame?.sequence || '-'} · {receivedTime}</li>
+              <li>Smoothed/raw visible: {poseAnalysis?.smoothingStats?.smoothedVisibleCount ?? '-'} / {poseAnalysis?.smoothingStats?.rawVisibleCount ?? '-'}</li>
+              <li>Interpolated: {poseAnalysis?.smoothingStats?.interpolatedCount ?? '-'} · outliers: {poseAnalysis?.smoothingStats?.rejectedOutlierCount ?? '-'}</li>
+              <li>Paused: {state.trackingPaused ? 'yes' : 'no'}</li>
               <li>{state.isArmUseSuspected ? 'Arm support suspected: yes' : 'Arm support suspected: no'}</li>
               <li>Trunk center: {percent(state.trunkLeanScore)}</li>
               <li>Left-right symmetry: {percent(state.symmetryScore)}</li>

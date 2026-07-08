@@ -11,6 +11,7 @@ const ChairStandPosePhase = {
   Seated: 'seated',
   Rising: 'rising',
   Standing: 'standing',
+  Lowering: 'lowering',
 };
 
 const MIN_LANDMARK_VISIBILITY = 0.45;
@@ -233,6 +234,10 @@ export class MediaPipeChairStandAnalyzer {
     this.repEvents = [];
     this.repetitionCount = 0;
     this.readyForNextStand = true;
+    this.cycleActive = false;
+    this.cycleHasStanding = false;
+    this.cycleStartedAtMs = null;
+    this.cycleStandingAtMs = null;
     this.standingStreak = 0;
     this.seatedStreak = 0;
     this.armSupportFrames = 0;
@@ -244,13 +249,35 @@ export class MediaPipeChairStandAnalyzer {
     this.standingStreak = features.phase === ChairStandPosePhase.Standing ? this.standingStreak + 1 : 0;
     this.seatedStreak = features.phase === ChairStandPosePhase.Seated ? this.seatedStreak + 1 : 0;
 
-    if (this.seatedStreak >= REQUIRED_STABLE_FRAMES) {
+    if (!this.cycleActive && this.seatedStreak >= REQUIRED_STABLE_FRAMES) {
       this.readyForNextStand = true;
     }
 
     if (
       this.readyForNextStand &&
+      (features.phase === ChairStandPosePhase.Rising || features.phase === ChairStandPosePhase.Standing) &&
+      features.fullBodyVisible &&
+      !this.armUseDisqualified
+    ) {
+      this.cycleActive = true;
+      this.cycleStartedAtMs = this.cycleStartedAtMs || timestampMs;
+      this.readyForNextStand = false;
+    }
+
+    if (
+      this.cycleActive &&
       this.standingStreak >= REQUIRED_STABLE_FRAMES &&
+      features.fullBodyVisible &&
+      !this.armUseDisqualified
+    ) {
+      this.cycleHasStanding = true;
+      this.cycleStandingAtMs = this.cycleStandingAtMs || timestampMs;
+    }
+
+    if (
+      this.cycleActive &&
+      this.cycleHasStanding &&
+      this.seatedStreak >= REQUIRED_STABLE_FRAMES &&
       features.fullBodyVisible &&
       !this.armUseDisqualified
     ) {
@@ -259,9 +286,16 @@ export class MediaPipeChairStandAnalyzer {
       this.repEvents.push({
         index: this.repetitionCount,
         countedAtMs: timestampMs,
+        startedAtMs: this.cycleStartedAtMs,
+        stoodAtMs: this.cycleStandingAtMs,
+        seatedAtMs: timestampMs,
         phase: features.phase,
       });
-      this.readyForNextStand = false;
+      this.cycleActive = false;
+      this.cycleHasStanding = false;
+      this.cycleStartedAtMs = null;
+      this.cycleStandingAtMs = null;
+      this.readyForNextStand = true;
     }
   }
 
@@ -277,8 +311,7 @@ export class MediaPipeChairStandAnalyzer {
   }
 
   finalHalfStandCredit() {
-    const features = this.latestFeatures;
-    return this.readyForNextStand && features?.halfwayToStanding ? 1 : 0;
+    return 0;
   }
 
   rememberKinematicSample(features) {
@@ -408,14 +441,15 @@ export class MediaPipeChairStandAnalyzer {
   buildRepetitionResults() {
     return this.repEvents.map((event, index) => {
       const previousCountedAtMs = index > 0 ? this.repEvents[index - 1].countedAtMs : this.startedAt;
+      const extensionEndMs = event.stoodAtMs || event.countedAtMs;
       const nextCountedAtMs = this.repEvents[index + 1]?.countedAtMs ?? this.latestTimestampMs ?? event.countedAtMs;
       const extensionSamples = this.extensionSamplesFor({
-        fromMs: previousCountedAtMs,
-        toMs: event.countedAtMs,
+        fromMs: event.startedAtMs || previousCountedAtMs,
+        toMs: extensionEndMs,
       });
       const sittingSamples = this.findSittingSegment({
-        fromMs: event.countedAtMs,
-        toMs: nextCountedAtMs,
+        fromMs: extensionEndMs,
+        toMs: event.seatedAtMs || nextCountedAtMs,
       });
 
       return {
@@ -543,6 +577,8 @@ export class MediaPipeChairStandAnalyzer {
       phase = ChairStandPosePhase.Standing;
     } else if (averageKneeAngle <= SEATED_KNEE_ANGLE || hipAboveKnees < SEATED_HIP_MARGIN) {
       phase = ChairStandPosePhase.Seated;
+    } else if (Number.isFinite(hipVerticalVelocityBodyHeightsPerSec) && hipVerticalVelocityBodyHeightsPerSec >= MIN_HIP_DESCENT_BODY_HEIGHTS_PER_SEC) {
+      phase = ChairStandPosePhase.Lowering;
     } else if (hipAboveKnees >= RISING_HIP_MARGIN) {
       phase = ChairStandPosePhase.Rising;
     }
@@ -656,6 +692,7 @@ export class MediaPipeChairStandAnalyzer {
     if (armUseDisqualified) postureMessage = SteadiAssessmentRules.ChairStandArmRule;
     else if (features.phase === ChairStandPosePhase.Standing) postureMessage = 'A full standing posture was detected. Sit safely to prepare for the next rep.';
     else if (features.phase === ChairStandPosePhase.Rising) postureMessage = 'Rising detected. Stand fully, then sit down slowly.';
+    else if (features.phase === ChairStandPosePhase.Lowering) postureMessage = 'Lowering detected. Sit with control to complete the rep.';
     else if (features.phase === ChairStandPosePhase.Seated) postureMessage = 'Seated posture detected. Stand when ready.';
 
     return {
@@ -669,7 +706,7 @@ export class MediaPipeChairStandAnalyzer {
       warningMessage,
       postureMessage,
       isArmUseSuspected: armUseDisqualified || features.armSupportLikely,
-      isStandingOrRising: features.phase === ChairStandPosePhase.Standing || features.phase === ChairStandPosePhase.Rising,
+      isStandingOrRising: features.phase === ChairStandPosePhase.Standing || features.phase === ChairStandPosePhase.Rising || features.phase === ChairStandPosePhase.Lowering,
       phase: features.phase,
       trunkLeanScore: features.trunkLeanScore,
       trunkForwardLean: features.trunkForwardLean,

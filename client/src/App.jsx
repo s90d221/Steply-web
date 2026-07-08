@@ -47,12 +47,14 @@ function screenConfigFromUrl() {
       reportMode: 'family',
       participantId: null,
       missionPreview: false,
+      selectedTest: null,
     };
   }
 
   const params = new URLSearchParams(window.location.search);
   const screen = params.get('screen') || '';
   const demoMode = params.get('demoUi') === '1' || Boolean(screen);
+  const requestedTest = params.get('test');
 
   const config = {
     screen,
@@ -62,6 +64,9 @@ function screenConfigFromUrl() {
     reportMode: 'family',
     participantId: null,
     missionPreview: false,
+    selectedTest: ['four_stage_balance', 'chair_stand', 'timed_up_and_go'].includes(requestedTest)
+      ? requestedTest
+      : null,
   };
 
   if (screen === 'setup') {
@@ -106,7 +111,35 @@ function shouldShowAnalysisPanel(dashboard, hasStartedTest) {
   return hasStartedTest && dashboard.activeStep === 'analysis';
 }
 
-function usePreviewPoseAnalysis(basePoseAnalysis, missionPreviewActive) {
+function previewStateForTest(selectedTest, elapsedSeconds) {
+  if (selectedTest === 'chair_stand') {
+    return {
+      durationSeconds: 30,
+      primaryLabel: 'Chair Stands',
+      primaryValue: Math.min(12, Math.max(0, Math.floor((elapsedSeconds - 2) / 2))),
+      phase: elapsedSeconds % 4 < 2 ? 'rising' : 'seated',
+      postureMessage: 'Stand fully, then sit down with control.',
+    };
+  }
+  if (selectedTest === 'timed_up_and_go') {
+    return {
+      durationSeconds: 45,
+      primaryLabel: 'TUG Time',
+      primaryValue: elapsedSeconds,
+      phase: elapsedSeconds < 4 ? 'rising' : elapsedSeconds < 22 ? 'walking' : 'seated',
+      postureMessage: 'Walk steadily, turn slowly, return, and sit.',
+    };
+  }
+  return {
+    durationSeconds: 56,
+    primaryLabel: 'Hold Time',
+    primaryValue: Math.min(10, elapsedSeconds),
+    phase: 'standing',
+    postureMessage: 'Hold this position gently.',
+  };
+}
+
+function usePreviewPoseAnalysis(basePoseAnalysis, missionPreviewActive, selectedTest) {
   const [previewElapsed, setPreviewElapsed] = useState(12);
 
   useEffect(() => {
@@ -122,27 +155,89 @@ function usePreviewPoseAnalysis(basePoseAnalysis, missionPreviewActive) {
 
   return useMemo(() => {
     if (!missionPreviewActive) return basePoseAnalysis;
+    const previewState = previewStateForTest(selectedTest, previewElapsed);
 
     return {
       ...basePoseAnalysis,
       isRunning: true,
       workerStatus: 'analyzing',
-      durationSeconds: 30,
+      durationSeconds: previewState.durationSeconds,
       analysisState: {
         ...(basePoseAnalysis?.analysisState || {}),
-        durationSeconds: 30,
+        durationSeconds: previewState.durationSeconds,
         elapsedSeconds: previewElapsed,
-        primaryLabel: 'Hold Time',
-        primaryValue: Math.min(10, previewElapsed),
+        primaryLabel: previewState.primaryLabel,
+        primaryValue: previewState.primaryValue,
         confidence: 0.92,
         isFullBodyVisible: true,
         warningMessage: '',
-        postureMessage: 'Hold this position gently.',
+        postureMessage: previewState.postureMessage,
         stabilityScore: 0.78,
-        phase: 'standing',
+        phase: previewState.phase,
       },
     };
-  }, [basePoseAnalysis, missionPreviewActive, previewElapsed]);
+  }, [basePoseAnalysis, missionPreviewActive, previewElapsed, selectedTest]);
+}
+
+function QrConnectionGate({ dashboard }) {
+  const hasQrCode = Boolean(dashboard.sessionBundle?.qrDataUrl);
+  const gateStatus = hasQrCode
+    ? 'Waiting for mobile app link'
+    : dashboard.busy
+      ? 'Creating QR code'
+      : 'Preparing QR link';
+
+  return (
+    <div className="steply-shell steply-shell--main service-shell service-shell--link-gate">
+      <main className="dashboard-main service-main">
+        <section className="qr-gate" aria-labelledby="qr-gate-title">
+          <div className="qr-gate__intro">
+            <div className="qr-gate__brand">
+              <div className="brand-mark">S</div>
+              <div>
+                <strong>Steply</strong>
+                <span>Mobile Link Required</span>
+              </div>
+            </div>
+            <div className="qr-gate__status" aria-live="polite">
+              <span className="status-dot status-dot--waiting" />
+              {gateStatus}
+            </div>
+            <div>
+              <div className="eyebrow">QR Connection</div>
+              <h1 id="qr-gate-title">Connect the mobile app first.</h1>
+              <p>
+                Scan this QR code in Steply Mobile. The home screen opens automatically after the mobile profile is linked.
+              </p>
+            </div>
+            <ol className="qr-gate__steps">
+              <li>Open Steply Mobile.</li>
+              <li>Scan the QR code on this screen.</li>
+              <li>Choose a profile to link with this web session.</li>
+            </ol>
+          </div>
+
+          <div className="qr-gate__panel">
+            <SessionRail
+              className="session-rail--gate"
+              compact
+              sessionBundle={dashboard.sessionBundle}
+              networkInfo={dashboard.networkInfo}
+              onCreateSession={dashboard.handleCreateSession}
+              onCopyPayload={dashboard.handleCopyPayload}
+              onRefreshSession={dashboard.handleRefreshSession}
+              busy={dashboard.busy}
+              error={dashboard.error || dashboard.poseAnalysis?.error}
+            />
+            <div className="qr-gate__network">
+              <strong>Same network required</strong>
+              <span>{dashboard.networkInfo?.dashboardUrl || 'Connect the PC and phone to the same Wi-Fi network.'}</span>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  );
 }
 
 export default function App() {
@@ -158,9 +253,12 @@ export default function App() {
   const [participantId, setParticipantId] = useState(initialConfig.participantId);
   const [missionPreviewActive, setMissionPreviewActive] = useState(initialConfig.missionPreview);
   const previousSessionIdRef = useRef(dashboard.session?.id);
+  const hasRequestedInitialQrRef = useRef(false);
 
-  const displayPoseAnalysis = usePreviewPoseAnalysis(dashboard.poseAnalysis, missionPreviewActive);
-  const isMobileConnected = Boolean(dashboard.session?.profile || dashboard.remoteCameraFrame?.src);
+  const displayPoseAnalysis = usePreviewPoseAnalysis(dashboard.poseAnalysis, missionPreviewActive, dashboard.selectedTest);
+  const isMobileLinked = Boolean(dashboard.session?.profile);
+  const isMobileConnected = Boolean(isMobileLinked || dashboard.remoteCameraFrame?.src);
+  const shouldRequireQrLink = !initialConfig.demoMode && !isMobileLinked;
   const demoHistoryItems = useMemo(() => buildDemoHistoryItems(), []);
   const displayHistoryItems = initialConfig.demoMode && dashboard.historyItems.length === 0
     ? demoHistoryItems
@@ -169,8 +267,8 @@ export default function App() {
     ? { type: 'visual_review_fixture', label: 'UI-ready visual review data', persistent: false }
     : dashboard.historySource;
   const demoFinalResult = useMemo(
-    () => buildDemoFinalResult(dashboard.selectedTest || 'four_stage_balance'),
-    [dashboard.selectedTest],
+    () => buildDemoFinalResult(initialConfig.selectedTest || dashboard.selectedTest || 'four_stage_balance'),
+    [dashboard.selectedTest, initialConfig.selectedTest],
   );
   const displayFinalResult = dashboard.finalResult || dashboard.poseAnalysis?.analysisResult || (
     initialConfig.demoMode ? demoFinalResult : null
@@ -187,6 +285,17 @@ export default function App() {
   }, [dashboard.activeStep, activeContext, reportMode, participantId]);
 
   useEffect(() => {
+    if (!shouldRequireQrLink) return;
+    if (dashboard.sessionBundle || dashboard.busy || hasRequestedInitialQrRef.current) return;
+    hasRequestedInitialQrRef.current = true;
+    dashboard.handleCreateSession();
+  }, [dashboard.busy, dashboard.handleCreateSession, dashboard.sessionBundle, shouldRequireQrLink]);
+
+  useEffect(() => {
+    if (isMobileLinked) hasRequestedInitialQrRef.current = false;
+  }, [isMobileLinked]);
+
+  useEffect(() => {
     if (isMobileConnected) setIsQrModalOpen(false);
   }, [isMobileConnected]);
 
@@ -201,7 +310,6 @@ export default function App() {
     setActiveContext('home');
     setHasStartedTest(true);
     setMissionPreviewActive(false);
-    dashboard.handleSelectTest('four_stage_balance');
     dashboard.setActiveStep('analysis');
   };
 
@@ -274,7 +382,7 @@ export default function App() {
   const pageHeader = activeContext === 'home'
     ? {
       eyebrow: 'Steply Home',
-      title: 'Today’s balance mission',
+      title: 'Today’s movement mission',
       description: 'Start with one large button. Steply will guide the check, exercise, and progress review step by step.',
     }
     : activeContext === 'care'
@@ -349,10 +457,7 @@ export default function App() {
       <StartPanel
         session={dashboard.session}
         isMobileConnected={isMobileConnected}
-        historyItems={displayHistoryItems}
-        historySource={displayHistorySource}
         onStartAnalysis={handleStartTest}
-        onViewProgress={() => dashboard.setActiveStep('progress')}
       />
     );
   };
@@ -366,6 +471,10 @@ export default function App() {
     }
     return renderHomePanel();
   };
+
+  if (shouldRequireQrLink) {
+    return <QrConnectionGate dashboard={dashboard} />;
+  }
 
   return (
     <div className={`steply-shell steply-shell--main service-shell service-shell--${activeContext} service-shell--view-${activeView}`}>
@@ -382,14 +491,16 @@ export default function App() {
           </div>
         </header>
 
-        <ContextNav
-          activeContext={activeContext}
-          activeView={activeView}
-          onContextChange={handleContextChange}
-          onNavigate={handleNavigate}
-          onOpenCameraLink={() => setIsQrModalOpen(true)}
-          isMobileConnected={isMobileConnected}
-        />
+        {activeContext !== 'home' ? (
+          <ContextNav
+            activeContext={activeContext}
+            activeView={activeView}
+            onContextChange={handleContextChange}
+            onNavigate={handleNavigate}
+            onOpenCameraLink={() => setIsQrModalOpen(true)}
+            isMobileConnected={isMobileConnected}
+          />
+        ) : null}
 
         {shouldShowJourneyFlow ? (
           <JourneyFlow activeStep={dashboard.activeStep} compact={activeContext === 'home'} />

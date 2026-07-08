@@ -119,6 +119,12 @@ function ProfessionalReport() {
         <MetricCard value="Needs Review" label="Risk Classification" detail="Based on repeated screening signals" status="recheck" />
         <MetricCard value={weeklyReport.weakArea} label="Weak Area Trend" detail="Repeated side-to-side stability change" accent />
         <MetricCard value="58%" label="Adherence" detail="Exercise sessions completed this week" />
+        <MetricCard
+          value={weeklyReport.professionalReviewSuggested ? 'Yes' : 'Monitor'}
+          label="Professional Review"
+          detail={weeklyReport.trendWarning}
+          status={weeklyReport.professionalReviewSuggested ? 'recheck' : 'practice_needed'}
+        />
       </div>
 
       <div className="professional-grid">
@@ -136,9 +142,8 @@ function ProfessionalReport() {
           <div className="eyebrow">Exercise Program Guidance</div>
           <h3>Adjustment notes</h3>
           <div className="program-adjustment-list">
-            <span>Strengthen lower-body endurance</span>
-            <span>Increase side hip stability exercise</span>
-            <span>Maintain balance practice frequency</span>
+            {weeklyReport.failedCriteria.map((criterion) => <span key={criterion}>{criterion}</span>)}
+            <span>{weeklyReport.recommendedNextAction}</span>
           </div>
           <p>{weeklyReport.professionalNote}</p>
         </SteplyCard>

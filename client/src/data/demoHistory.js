@@ -32,10 +32,21 @@ function chairStandResult(repetitionCount) {
   };
 }
 
+function tugResult(totalTimeSec, turnDurationSec) {
+  return {
+    schemaVersion: 'timed_up_and_go_result.v1',
+    testType: 'timed_up_and_go',
+    totalTimeSec,
+    turnDurationSec,
+    gaitSpeedEstimate: 6 / Math.max(totalTimeSec - turnDurationSec - 2.4, 1),
+  };
+}
+
 export function buildDemoHistoryItems() {
   const chairReps = [7, 8, 9, 10, 11, 12];
   const balanceHolds = [5.2, 6.4, 7.8, 8.6, 9.5, 10.3];
   const balanceSway = [0.082, 0.074, 0.068, 0.057, 0.049, 0.041];
+  const tugTimes = [15.1, 14.2, 13.8, 13.4, 12.9, 12.2];
 
   return [
     ...chairReps.map((repetitionCount, index) => ({
@@ -60,6 +71,18 @@ export function buildDemoHistoryItems() {
       primaryValue: holdSeconds,
       balanceResult: balanceResult(holdSeconds, balanceSway[index]),
       message: `${holdSeconds}s tandem hold recorded from injected demo history.`,
+      source: 'development_injected_history_fixture',
+    })),
+    ...tugTimes.map((totalTimeSec, index) => ({
+      id: `demo-tug-${index}`,
+      testType: 'timed_up_and_go',
+      selectedTest: 'timed_up_and_go',
+      receivedAt: daysAgo((tugTimes.length - index) * 2 - 0.5),
+      score: 66 + index * 4,
+      count: totalTimeSec,
+      primaryValue: totalTimeSec,
+      tugResult: tugResult(totalTimeSec, 3.8 - index * 0.12),
+      message: `${totalTimeSec}s TUG time recorded from injected demo history.`,
       source: 'development_injected_history_fixture',
     })),
   ].sort((a, b) => b.receivedAt - a.receivedAt);

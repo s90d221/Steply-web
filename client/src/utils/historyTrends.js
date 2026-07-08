@@ -1,6 +1,7 @@
 export const HistoryChallengeTypes = {
   FourStageBalance: 'four_stage_balance',
   ChairStand: 'chair_stand',
+  TimedUpAndGo: 'timed_up_and_go',
 };
 
 const FIVE_RECENT_SESSIONS = 5;
@@ -25,6 +26,9 @@ export function normalizeHistoryTestType(item) {
   }
   if (raw === HistoryChallengeTypes.ChairStand || raw.includes('chair')) {
     return HistoryChallengeTypes.ChairStand;
+  }
+  if (raw === HistoryChallengeTypes.TimedUpAndGo || raw.includes('timed_up') || raw === 'tug') {
+    return HistoryChallengeTypes.TimedUpAndGo;
   }
   return raw || null;
 }
@@ -78,6 +82,19 @@ export function extractChairStandMetrics(item) {
   };
 }
 
+export function extractTugMetrics(item) {
+  return {
+    totalTimeSec: finiteNumber(
+      item?.rawMetrics?.totalTimeSec
+        ?? item?.tugResult?.totalTimeSec
+        ?? item?.features?.tugTimeSeconds
+        ?? item?.features?.primaryValue
+        ?? item?.primaryValue
+        ?? item?.count,
+    ),
+  };
+}
+
 function formatSessionLabel(index) {
   return `#${index + 1}`;
 }
@@ -98,7 +115,9 @@ export function buildChallengeTrendSeries(historyItems = [], challengeType, limi
     const timestamp = historyTimestamp(item);
     const metrics = challengeType === HistoryChallengeTypes.FourStageBalance
       ? extractBalanceMetrics(item)
-      : extractChairStandMetrics(item);
+      : challengeType === HistoryChallengeTypes.TimedUpAndGo
+        ? extractTugMetrics(item)
+        : extractChairStandMetrics(item);
     return {
       ...metrics,
       id: item.id || `${challengeType}-${timestamp}-${index}`,

@@ -1,13 +1,10 @@
-import { useState } from 'react';
-import { MetricCard, SafetyNoticeCard, SteplyButton, SteplyCard } from './SteplyPrimitives';
+import { MetricCard, SteplyButton, SteplyCard } from './SteplyPrimitives';
 
 export function StartPanel({
   session,
   onStartAnalysis,
   isMobileConnected = false,
-  onViewProgress,
 }) {
-  const [showHelp, setShowHelp] = useState(false);
   const profileName = session?.profile?.displayName || session?.profile?.name || '';
 
   return (
@@ -25,11 +22,6 @@ export function StartPanel({
             <SteplyButton onClick={onStartAnalysis}>
               Start Today’s Balance Mission
             </SteplyButton>
-            <div className="home-secondary-actions" aria-label="Secondary actions">
-              <SteplyButton variant="secondary" onClick={onViewProgress}>My Progress</SteplyButton>
-              <SteplyButton variant="secondary" onClick={onViewProgress}>History</SteplyButton>
-              <SteplyButton variant="secondary" onClick={() => setShowHelp((current) => !current)}>Help</SteplyButton>
-            </div>
           </div>
         </div>
         <div className="home-hero__visual" aria-hidden="true">
@@ -42,17 +34,11 @@ export function StartPanel({
         </div>
       </SteplyCard>
 
-      {showHelp ? (
-        <SafetyNoticeCard>
-          Place a stable chair or wall within reach. If you feel pain, dizziness, or discomfort, stop and sit down.
-        </SafetyNoticeCard>
-      ) : null}
-
       <div className="metric-row home-readiness-row">
         <MetricCard
           value={isMobileConnected ? 'Ready' : 'Set up'}
           label="Phone Camera"
-          detail={isMobileConnected ? 'Camera stream is linked' : 'Connect when you reach the setup screen'}
+          detail={isMobileConnected ? 'Linked through the mobile app' : 'Link before entering home'}
           accent={isMobileConnected}
         />
         <MetricCard value="1.5m" label="Camera Distance" detail="A comfortable full-body view" />

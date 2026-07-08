@@ -1,6 +1,7 @@
 import { MetricCard, SteplyButton, SteplyCard, StatusPill } from './SteplyPrimitives';
 import { testLabel } from '../pose/recommendationRules';
 import { WeakAreaIds } from '../pose/weakAreaRules';
+import { FallRiskLevels, WeaknessLabels } from '../pose/assessmentRules';
 import { roundMetric, statusFromScore } from '../utils/format';
 import { displayWeakAreaLabel, weakAreaSupportMessages } from '../data/serviceModels';
 
@@ -16,6 +17,13 @@ const weakAreaChipById = {
   [WeakAreaIds.HipAbductorMediolateralControl]: 'Side hip stability',
   [WeakAreaIds.LowerLimbMuscularEndurance]: 'Lower-body endurance',
 };
+
+function riskStatusClass(level, fallback) {
+  if (level === FallRiskLevels.Low) return 'steady';
+  if (level === FallRiskLevels.Moderate) return 'practice_needed';
+  if (level === FallRiskLevels.NeedsReview || level === null) return 'recheck';
+  return fallback;
+}
 
 function weakAreaIdsFromResult(result = {}) {
   const rawWeakAreas = result.weakAreas
@@ -33,13 +41,18 @@ function weakAreaIdsFromResult(result = {}) {
 }
 
 function recommendedExerciseNames(result = {}) {
-  return (result.recommendations || [])
-    .map((recommendation) => recommendation.title)
+  const recommendations = result.recommendationPlan?.recommendedExercises
+    || result.recommendedExercises
+    || result.recommendations
+    || [];
+  return recommendations
+    .map((recommendation) => recommendation.title || recommendation.name)
     .filter(Boolean)
     .slice(0, 2);
 }
 
 function buildFriendlyResultMessage(result, status) {
+  if (result.seniorMessage) return result.seniorMessage;
   const weakAreaIds = weakAreaIdsFromResult(result);
   const weakAreaMessage = weakAreaIds.map((id) => weakAreaSupportMessages[id]).find(Boolean);
   if (weakAreaMessage) return weakAreaMessage;
@@ -54,7 +67,10 @@ function sanitizeObservationText(text) {
   return String(text || '')
     .replace(/fall-risk signal/gi, 'screening signal')
     .replace(/risk interpretation/gi, 'screening interpretation')
-    .replace(new RegExp('high\\s+risk', 'gi'), 'needs review');
+    .replace(new RegExp('high\\s+risk', 'gi'), 'needs review')
+    .replace(/failed/gi, 'needs practice')
+    .replace(/disqualified/gi, 'used support')
+    .replace(/diagnosis/gi, 'exercise-planning note');
 }
 
 function friendlyPrimaryLabel(label, testType) {
@@ -67,16 +83,23 @@ function friendlyPrimaryLabel(label, testType) {
 
 function buildFriendlyObservationChips(result, fallbackFlags) {
   const weakAreaChips = weakAreaIdsFromResult(result)
-    .map((id) => weakAreaChipById[id] || displayWeakAreaLabel(id))
+    .map((id) => weakAreaChipById[id] || WeaknessLabels[id] || displayWeakAreaLabel(id))
     .filter(Boolean);
   const exerciseNames = recommendedExerciseNames(result);
   const exerciseChip = exerciseNames.length ? `Recommended exercise: ${exerciseNames.join(', ')}` : null;
+  const primaryWeaknessChip = result.primaryWeaknessLabel
+    ? `Practice focus: ${result.primaryWeaknessLabel}`
+    : result.primaryWeakness && WeaknessLabels[result.primaryWeakness]
+      ? `Practice focus: ${WeaknessLabels[result.primaryWeakness]}`
+      : null;
+  const trendChip = result.trendWarnings?.[0]?.message || null;
   const metricLabel = friendlyPrimaryLabel(result.primaryLabel, result.testType);
+  const metricDigits = result.testType === 'timed_up_and_go' ? 1 : 0;
   const metricChip = metricLabel || result.repetitionCount || result.primaryValue
-    ? `${metricLabel || 'Record'} ${roundMetric(result.primaryValue ?? result.repetitionCount, 0)}`
+    ? `${metricLabel || 'Record'} ${formatMetricValue(result.primaryValue ?? result.repetitionCount, { digits: metricDigits })}`
     : 'Today’s movement was recorded';
   const sanitizedFlags = (fallbackFlags || []).map(sanitizeObservationText);
-  return [...weakAreaChips, exerciseChip, metricChip, ...sanitizedFlags]
+  return [primaryWeaknessChip, ...weakAreaChips, exerciseChip, trendChip, metricChip, ...sanitizedFlags]
     .filter(Boolean)
     .slice(0, 4);
 }
@@ -87,31 +110,60 @@ function normalizedPercent(value, fallback = 0) {
   return Math.round(number <= 1 ? number * 100 : number);
 }
 
+function formatMetricValue(value, { digits = 0, fallback = 0 } = {}) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return digits > 0 ? number.toFixed(digits) : Math.round(number);
+}
+
 export function ResultPanel({ finalResult, liveResult, onGoExercises, onDemoFinal }) {
   const source = finalResult || liveResult || {};
-  const score = roundMetric(source.score, normalizedPercent(source.confidence, 85));
+  const cameraSetupNeeded = Boolean(
+    source.invalid
+      || source.testFlags?.cameraSetupNeeded
+      || source.recommendationPlan?.priority === 'camera_setup'
+      || source.primaryWeakness === 'cameraSetup'
+  );
+  const score = roundMetric(source.score, normalizedPercent(source.trackingQualityScore ?? source.confidence, 85));
   const testType = source.testType || source.selectedTest || 'four_stage_balance';
+  const primaryDigits = testType === 'timed_up_and_go' ? 1 : 0;
   const primaryLabel = friendlyPrimaryLabel(
     source.features?.primaryLabel || source.primaryLabel || 'Hold Time',
     testType,
   );
-  const primaryValue = roundMetric(source.features?.primaryValue ?? source.primaryValue ?? source.count ?? source.repetitionCount, 0);
+  const primaryValue = cameraSetupNeeded
+    ? '-'
+    : formatMetricValue(
+      source.features?.primaryValue ?? source.primaryValue ?? source.count ?? source.repetitionCount,
+      { digits: primaryDigits },
+    );
   const stability = normalizedPercent(source.features?.stability ?? source.stabilityScore, 0);
-  const status = source.recommendationLevel || statusFromScore(score);
+  const status = riskStatusClass(source.fallRiskLevel, source.recommendationLevel || statusFromScore(score));
+  const adultLabel = source.olderAdultLabel || 'Exercise recommendation ready';
   const flags = source.flags?.length ? source.flags : [
     'Full-body movement was captured from the phone camera.',
-    'This is screening guidance for exercise planning, not a diagnosis.',
+    'This is screening guidance for exercise planning.',
   ];
   const friendlyMessage = buildFriendlyResultMessage(source, status);
   const friendlyFlags = buildFriendlyObservationChips(source, flags);
+  const primaryRecommendation = source.recommendationPlan?.recommendedExercises?.[0]
+    || source.recommendedExercises?.[0]
+    || source.recommendations?.[0]
+    || null;
+  const recommendationReason = primaryRecommendation?.reason
+    || source.recommendationPlan?.reason
+    || 'This exercise matches today’s movement pattern.';
+  const safetyNote = source.recommendationPlan?.gameDisabledReason
+    || primaryRecommendation?.safetyNote
+    || 'Keep support nearby and move at a comfortable pace.';
 
   return (
     <div className="panel-grid panel-grid--result distance-mode distance-mode--result">
       <SteplyCard className="result-hero-card">
         <div className="eyebrow">Weakness Analysis</div>
-        <h2>Today’s balance summary</h2>
+        <h2>Today’s movement summary</h2>
         <p>{friendlyMessage}</p>
-        <StatusPill status={status}>Exercise recommendation ready</StatusPill>
+        <StatusPill status={status}>{adultLabel}</StatusPill>
       </SteplyCard>
 
       <div className="metric-row metric-row--result">
@@ -130,6 +182,18 @@ export function ResultPanel({ finalResult, liveResult, onGoExercises, onDemoFina
         </div>
       </SteplyCard>
 
+      <SteplyCard className="feedback-result-card">
+        <div>
+          <div className="eyebrow">Recommended Practice</div>
+          <h3>{primaryRecommendation?.title || primaryRecommendation?.name || 'Gentle supported practice'}</h3>
+        </div>
+        <div className="feedback-list">
+          <span>{sanitizeObservationText(recommendationReason)}</span>
+          <span>{sanitizeObservationText(safetyNote)}</span>
+          <span>{source.trendWarnings?.[0]?.message || 'Progress trend will build over repeated sessions.'}</span>
+        </div>
+      </SteplyCard>
+
       <SteplyCard className="safety-step-badge">
         <div className="safety-step-badge__icon">✓</div>
         <div>
@@ -140,7 +204,9 @@ export function ResultPanel({ finalResult, liveResult, onGoExercises, onDemoFina
       </SteplyCard>
 
       <div className="result-actions">
-        <SteplyButton onClick={onGoExercises}>Start My Exercise Game</SteplyButton>
+        <SteplyButton onClick={onGoExercises} disabled={cameraSetupNeeded}>
+          {cameraSetupNeeded ? 'Camera Check Needed' : 'Start My Exercise Game'}
+        </SteplyButton>
         <SteplyButton variant="secondary" onClick={onDemoFinal}>Save Today’s Result</SteplyButton>
       </div>
     </div>

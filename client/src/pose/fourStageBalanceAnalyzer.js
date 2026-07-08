@@ -29,6 +29,7 @@ export const DEFAULT_BALANCE_OPTIONS = {
   exitConfirmMs: 700,
   minStanceConfidence: 0.35,
   footMovementExitThreshold: 0.16,
+  footMovementExitConfirmFrames: 3,
   handSupportRatioThreshold: 0.12,
 };
 
@@ -504,10 +505,12 @@ function footMovementMetric(samples, stageId, options) {
       exitObserved: false,
       exitFrameCount: 0,
       firstExitAtMs: null,
+      firstCandidateExitAtMs: null,
       firstExitAxis: null,
       maxDisplacementRatio: null,
       maxMediolateralDisplacementRatio: null,
       maxAnteriorPosteriorDisplacementRatio: null,
+      confirmFrameThreshold: options.footMovementExitConfirmFrames,
       exitByAxis: {
         mediolateral: { observed: false, frameCount: 0, firstObservedAtMs: null },
         anteriorPosterior: { observed: false, frameCount: 0, firstObservedAtMs: null },
@@ -537,6 +540,7 @@ function footMovementMetric(samples, stageId, options) {
   let firstExitAtMs = null;
   let firstExitAxis = null;
   let exitFrameCount = 0;
+  const confirmFrames = Math.max(1, options.footMovementExitConfirmFrames || 1);
   const exitByAxis = {
     mediolateral: { observed: false, frameCount: 0, firstObservedAtMs: null },
     anteriorPosterior: { observed: false, frameCount: 0, firstObservedAtMs: null },
@@ -566,14 +570,12 @@ function footMovementMetric(samples, stageId, options) {
       maxMediolateralDisplacementRatio = Math.max(maxMediolateralDisplacementRatio, mediolateralRatio);
       maxAnteriorPosteriorDisplacementRatio = Math.max(maxAnteriorPosteriorDisplacementRatio, anteriorPosteriorRatio);
       if (mediolateralRatio >= options.footMovementExitThreshold) {
-        exitByAxis.mediolateral.observed = true;
         exitByAxis.mediolateral.frameCount += 1;
         if (!exitByAxis.mediolateral.firstObservedAtMs) {
           exitByAxis.mediolateral.firstObservedAtMs = sample.timestampMs;
         }
       }
       if (anteriorPosteriorRatio >= options.footMovementExitThreshold) {
-        exitByAxis.anteriorPosterior.observed = true;
         exitByAxis.anteriorPosterior.frameCount += 1;
         if (!exitByAxis.anteriorPosterior.firstObservedAtMs) {
           exitByAxis.anteriorPosterior.firstObservedAtMs = sample.timestampMs;
@@ -598,17 +600,23 @@ function footMovementMetric(samples, stageId, options) {
     };
   }
 
+  exitByAxis.mediolateral.observed = exitByAxis.mediolateral.frameCount >= confirmFrames;
+  exitByAxis.anteriorPosterior.observed = exitByAxis.anteriorPosterior.frameCount >= confirmFrames;
+  const exitObserved = exitFrameCount >= confirmFrames;
+
   return {
     sampleCount: samples.length,
     supportFoot: supportFootForOneLeg,
-    exitObserved: exitFrameCount > 0,
+    exitObserved,
     exitFrameCount,
-    firstExitAtMs,
-    firstExitAxis,
+    firstExitAtMs: exitObserved ? firstExitAtMs : null,
+    firstCandidateExitAtMs: firstExitAtMs,
+    firstExitAxis: exitObserved ? firstExitAxis : null,
     maxDisplacementRatio,
     maxMediolateralDisplacementRatio,
     maxAnteriorPosteriorDisplacementRatio,
     thresholdRatio: options.footMovementExitThreshold,
+    confirmFrameThreshold: confirmFrames,
     exitByAxis,
     byFoot,
   };
@@ -677,10 +685,12 @@ function emptyMetrics() {
       exitObserved: false,
       exitFrameCount: 0,
       firstExitAtMs: null,
+      firstCandidateExitAtMs: null,
       firstExitAxis: null,
       maxDisplacementRatio: null,
       maxMediolateralDisplacementRatio: null,
       maxAnteriorPosteriorDisplacementRatio: null,
+      confirmFrameThreshold: DEFAULT_BALANCE_OPTIONS.footMovementExitConfirmFrames,
       exitByAxis: {
         mediolateral: { observed: false, frameCount: 0, firstObservedAtMs: null },
         anteriorPosterior: { observed: false, frameCount: 0, firstObservedAtMs: null },

@@ -29,10 +29,13 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: stretch;
   }
-  .session-rail--modal { grid-template-columns: 1fr; }
+  .session-rail--modal,
+  .session-rail--gate { grid-template-columns: 1fr; }
   .brand-lockup, .local-network-note { grid-column: 1 / -1; }
   .session-rail--modal .brand-lockup,
-  .session-rail--modal .local-network-note { grid-column: auto; }
+  .session-rail--modal .local-network-note,
+  .session-rail--gate .brand-lockup,
+  .session-rail--gate .local-network-note { grid-column: auto; }
   .analysis-layout { grid-template-columns: 1fr; }
   .analysis-side { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .timer-circle { max-width: 260px; justify-self: center; width: 100%; }
@@ -84,12 +87,12 @@
   .ar-game__header { align-items: flex-start; flex-direction: column; }
   .ar-game__counter { width: 100%; }
   .ar-game-stage {
-    height: 380px;
+    height: clamp(520px, 72vh, 760px);
     min-height: 0;
   }
   .ar-game-object { width: 84px; height: 84px; font-size: 64px; }
   .ar-game-target-ring { width: 104px; height: 104px; }
-  .ar-game__status { align-items: flex-start; flex-direction: column; gap: 4px; }
+  .ar-game__status { grid-template-columns: 1fr; align-items: flex-start; gap: 4px; width: 100%; }
   .guided-camera-message {
     width: calc(100% - 32px);
     padding: 16px 18px;

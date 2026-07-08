@@ -1,4 +1,9 @@
 import { PoseLandmarks } from './poseLandmarks';
+import {
+  TRACKING_QUALITY_ALLOW,
+  TRACKING_QUALITY_MIN_RESULT,
+  evaluateCameraReadiness,
+} from './trackingQuality';
 
 export const READY_HOLD_SECONDS = 3;
 export const MIN_REQUIRED_VISIBILITY = 0.55;
@@ -7,6 +12,7 @@ export const MIN_BODY_HEIGHT = 0.38;
 export const MAX_BODY_HEIGHT = 0.9;
 export const MAX_CENTER_JUMP = 0.16;
 export const MAX_BODY_SIZE_CHANGE = 0.28;
+export { TRACKING_QUALITY_ALLOW, TRACKING_QUALITY_MIN_RESULT };
 
 const COMMON_REQUIRED_LANDMARKS = [
   PoseLandmarks.LeftShoulder,
@@ -169,33 +175,35 @@ export function evaluateSetupReadiness({
   testType = 'chair_stand',
   previousSample = null,
   strictStability = true,
+  poseCount = null,
+  brightness = null,
 } = {}) {
+  const cameraReadiness = evaluateCameraReadiness({
+    landmarks,
+    testType,
+    previousSample,
+    strictStability,
+    poseCount,
+    brightness,
+  });
   const bodyBox = calculateBodyBox(landmarks);
   const bodyCenter = calculateBodyCenter(bodyBox);
-  const requiredVisible = checkRequiredLandmarks(landmarks, testType);
   const distance = checkBodyDistance(bodyBox);
-  const lowerBodyVisible = checkLowerBodyVisible(landmarks);
   const visibility = checkAverageVisibility(landmarks);
-  const stableTarget = strictStability
-    ? checkStableTarget(bodyBox, previousSample, visibility.averageVisibility)
-    : true;
   const direction = checkDirection(landmarks, testType);
 
   const checks = {
-    singlePersonStable: stableTarget,
-    fullBodyVisible: requiredVisible,
+    ...cameraReadiness.checks,
     properDistance: distance.valid,
-    lowerBodyVisible,
-    stablePose: stableTarget,
-    goodVisibility: visibility.valid,
+    lowerBodyVisible: cameraReadiness.feetVisible,
+    feetVisible: cameraReadiness.feetVisible,
+    stablePose: cameraReadiness.trackingStable,
+    goodVisibility: visibility.valid && cameraReadiness.trackingQuality.requiredLandmarkVisibilityScore >= 0.72,
     correctDirection: direction.valid,
   };
 
-  const warnings = [];
-  if (!stableTarget) warnings.push('Keep only one person in the camera view.');
-  if (!requiredVisible) warnings.push('Make sure your full body is visible.');
+  const warnings = [...cameraReadiness.warnings];
   if (!distance.valid) warnings.push(distance.message);
-  if (!lowerBodyVisible) warnings.push('Make sure your knees and ankles are visible.');
   if (!visibility.valid) {
     warnings.push('Pose detection is unstable. Use a brighter space and keep the camera steady.');
   }
@@ -203,18 +211,23 @@ export function evaluateSetupReadiness({
 
   const passedCount = Object.values(checks).filter(Boolean).length;
   const readyScore = passedCount / Object.keys(checks).length;
-  const isReady = warnings.length === 0;
+  const isReady = cameraReadiness.isReady && direction.valid && distance.valid && visibility.valid;
+  const mainMessage = isReady ? 'Great. Hold still gently for three seconds.' : warnings[0];
 
   return {
+    ...cameraReadiness,
     isReady,
-    readyScore,
-    mainMessage: isReady ? 'Great. Hold still for 3 seconds.' : warnings[0],
+    readyScore: Math.min(readyScore, cameraReadiness.readyScore),
+    mainMessage,
+    message: mainMessage,
     warnings,
     checks,
     sample: {
+      ...cameraReadiness.sample,
       bodyBox,
       center: bodyCenter,
       averageVisibility: visibility.averageVisibility,
+      landmarks,
     },
   };
 }

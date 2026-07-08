@@ -103,10 +103,11 @@ export function mapPointToMediaRect(point, mediaRect) {
   };
 }
 
-export function PoseOverlay({ landmarks, frameSize, fit = 'contain' }) {
+export function PoseOverlay({ landmarks, rawLandmarks = [], showRaw = false, frameSize, fit = 'contain' }) {
   const [overlayRef, overlaySize] = useElementSize();
   const visibleLandmarks = landmarks || [];
   const pointMap = pointByName(visibleLandmarks);
+  const rawPointMap = pointByName(rawLandmarks || [], 0.2);
   const mediaRect = useMemo(
     () => mediaRectForObjectFit(frameSize, overlaySize, fit),
     [fit, frameSize, overlaySize],
@@ -114,6 +115,24 @@ export function PoseOverlay({ landmarks, frameSize, fit = 'contain' }) {
 
   return (
     <svg ref={overlayRef} className="pose-overlay" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+      {showRaw ? PoseConnections.map(([from, to]) => {
+        const a = rawPointMap.get(from);
+        const b = rawPointMap.get(to);
+        if (!a || !b) return null;
+        const start = mapPointToMediaRect(a, mediaRect);
+        const end = mapPointToMediaRect(b, mediaRect);
+        return (
+          <line
+            key={`raw-${from}-${to}`}
+            className="pose-overlay__raw-line"
+            x1={start.x}
+            y1={start.y}
+            x2={end.x}
+            y2={end.y}
+            vectorEffect="non-scaling-stroke"
+          />
+        );
+      }) : null}
       {PoseConnections.map(([from, to]) => {
         const a = pointMap.get(from);
         const b = pointMap.get(to);
@@ -145,6 +164,21 @@ export function PoseOverlay({ landmarks, frameSize, fit = 'contain' }) {
             />
           );
         })}
+      {showRaw ? (rawLandmarks || [])
+        .filter((point) => (point.visibility ?? 1) >= 0.2)
+        .map((point) => {
+          const overlayPoint = mapPointToMediaRect(point, mediaRect);
+          return (
+            <circle
+              key={`raw-${point.name}`}
+              className="pose-overlay__raw-point"
+              cx={overlayPoint.x}
+              cy={overlayPoint.y}
+              r="0.55"
+              vectorEffect="non-scaling-stroke"
+            />
+          );
+        }) : null}
     </svg>
   );
 }

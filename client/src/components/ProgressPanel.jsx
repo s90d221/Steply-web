@@ -16,20 +16,24 @@ function formatTrend(value, suffix = '') {
 export function ProgressPanel({ historyItems = [], historySource }) {
   const balancePoints = buildChallengeTrendSeries(historyItems, HistoryChallengeTypes.FourStageBalance);
   const chairStandPoints = buildChallengeTrendSeries(historyItems, HistoryChallengeTypes.ChairStand);
+  const tugPoints = buildChallengeTrendSeries(historyItems, HistoryChallengeTypes.TimedUpAndGo);
   const holdDelta = trendDelta(balancePoints, 'holdSeconds');
   const stabilityDelta = trendDelta(balancePoints, 'swayIndex', { lowerIsBetter: true });
   const chairDelta = trendDelta(chairStandPoints, 'repetitions');
+  const tugDelta = trendDelta(tugPoints, 'totalTimeSec', { lowerIsBetter: true });
   const latestHold = latestMetric(balancePoints, 'holdSeconds');
   const latestReps = latestMetric(chairStandPoints, 'repetitions');
+  const latestTug = latestMetric(tugPoints, 'totalTimeSec');
 
   return (
     <div className="progress-screen distance-mode distance-mode--history">
       <SteplyCard className="progress-hero">
         <div>
           <div className="eyebrow">Progress Tracking</div>
-          <h2>Your recent balance story</h2>
+          <h2>Your recent movement story</h2>
           <p>
-            Your hold time has improved compared with last week. Keep using the same calm pace and support setup.
+            Compare balance, chair strength, and walking checks over repeated sessions.
+            Keep using the same calm pace and support setup.
           </p>
         </div>
       </SteplyCard>
@@ -50,6 +54,11 @@ export function ProgressPanel({ historyItems = [], historySource }) {
           value={latestReps ?? '-'}
           label="Exercise Completion"
           detail={Number.isFinite(chairDelta) ? formatTrend(chairDelta, ' chair stands') : 'Keep building sessions'}
+        />
+        <MetricCard
+          value={latestTug !== null ? `${Number(latestTug).toFixed(1)}s` : '-'}
+          label="Latest TUG Time"
+          detail={Number.isFinite(tugDelta) ? formatTrend(tugDelta, 's change') : 'Walking baseline builds over sessions'}
         />
       </div>
 

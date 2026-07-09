@@ -377,6 +377,10 @@ export default function App() {
           : dashboard.activeStep === 'progress'
             ? 'progress'
             : 'home';
+  const isExercisePanelVisible = activeContext === 'home' && shouldShowExercisePanel({
+    ...dashboard,
+    poseAnalysis: displayPoseAnalysis,
+  });
   const shouldShowJourneyFlow = activeContext !== 'home';
 
   const pageHeader = activeContext === 'home'
@@ -477,7 +481,7 @@ export default function App() {
   }
 
   return (
-    <div className={`steply-shell steply-shell--main service-shell service-shell--${activeContext} service-shell--view-${activeView}`}>
+    <div className={`steply-shell steply-shell--main service-shell service-shell--${activeContext} service-shell--view-${activeView} ${isExercisePanelVisible ? 'service-shell--panel-exercise' : ''}`}>
       <main className="dashboard-main service-main">
         <header className="top-bar service-top-bar">
           <div>

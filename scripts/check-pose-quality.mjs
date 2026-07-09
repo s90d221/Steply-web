@@ -75,12 +75,45 @@ try {
 
   const ready = evaluateCameraReadiness({
     landmarks: basePose(),
+    testType: 'four_stage_balance',
     previousSample: null,
     poseCount: 1,
     brightness: 0.5,
   });
   assert.equal(ready.isReady, true);
   assert.ok(ready.trackingQualityScore >= 0.8);
+
+  const chairSideView = evaluateCameraReadiness({
+    landmarks: basePose({
+      [PoseLandmarks.RightShoulder]: { x: 0.59, y: 0.24, visibility: 0.05 },
+      [PoseLandmarks.RightHip]: { x: 0.55, y: 0.48, visibility: 0.05 },
+      [PoseLandmarks.RightKnee]: { x: 0.55, y: 0.67, visibility: 0.05 },
+      [PoseLandmarks.RightAnkle]: { x: 0.55, y: 0.86, visibility: 0.05 },
+      [PoseLandmarks.RightHeel]: { x: 0.56, y: 0.92, visibility: 0.05 },
+      [PoseLandmarks.RightFootIndex]: { x: 0.57, y: 0.95, visibility: 0.05 },
+    }),
+    testType: 'chair_stand',
+    previousSample: null,
+    poseCount: 1,
+    brightness: 0.5,
+  });
+  assert.equal(chairSideView.isReady, true);
+
+  const balanceNeedsBothFeet = evaluateCameraReadiness({
+    landmarks: basePose({
+      [PoseLandmarks.RightShoulder]: { x: 0.59, y: 0.24, visibility: 0.05 },
+      [PoseLandmarks.RightHip]: { x: 0.55, y: 0.48, visibility: 0.05 },
+      [PoseLandmarks.RightKnee]: { x: 0.55, y: 0.67, visibility: 0.05 },
+      [PoseLandmarks.RightAnkle]: { x: 0.55, y: 0.86, visibility: 0.05 },
+      [PoseLandmarks.RightHeel]: { x: 0.56, y: 0.92, visibility: 0.05 },
+      [PoseLandmarks.RightFootIndex]: { x: 0.57, y: 0.95, visibility: 0.05 },
+    }),
+    testType: 'four_stage_balance',
+    previousSample: null,
+    poseCount: 1,
+    brightness: 0.5,
+  });
+  assert.equal(balanceNeedsBothFeet.isReady, false);
 
   const missingFeet = evaluateCameraReadiness({
     landmarks: basePose({

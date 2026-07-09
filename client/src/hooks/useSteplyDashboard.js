@@ -160,12 +160,28 @@ export function useSteplyDashboard() {
     }
   }, [historyItems, refreshHistory, selectedTest, session?.id, session?.profile]);
 
+  const handleRemoteFrameProcessed = useCallback((frame) => {
+    const socket = socketRef.current;
+    if (!socket || socket.readyState !== WebSocket.OPEN) return;
+    const sequence = frame?.cameraFrameSequence ?? frame?.sequence;
+    if (!sequence && !frame?.mobileSequence) return;
+    socket.send(JSON.stringify({
+      type: 'remote-camera-frame-ack',
+      sequence: sequence || null,
+      mobileSequence: frame.mobileSequence || null,
+      source: frame.source || 'pose-frame',
+      receivedAt: frame.receivedAt || null,
+      analyzedAt: frame.analyzedAt || Date.now(),
+    }));
+  }, []);
+
   const poseAnalysis = useRemotePoseAnalysis({
     session,
     selectedTest,
     remoteCameraFrame,
     autoStart: false,
     onFinalResult: handlePoseFinalResult,
+    onFrameProcessed: handleRemoteFrameProcessed,
   });
 
   useEffect(() => {
@@ -211,6 +227,9 @@ export function useSteplyDashboard() {
             receivedAt: meta.receivedAt || Date.now(),
             byteLength: meta.byteLength || blob.size,
             sequence: meta.sequence || Date.now(),
+            mobileSequence: meta.mobileSequence || null,
+            mobileSentAt: meta.mobileSentAt || null,
+            capturedAtUptimeMs: meta.capturedAtUptimeMs || null,
           });
           setRemoteCameraStatus('Receiving live phone camera stream');
           setActiveStep((current) => current === 'exercise' ? current : 'analysis');
@@ -258,6 +277,8 @@ export function useSteplyDashboard() {
             receivedAt: message.receivedAt,
             byteLength: message.byteLength,
             sequence: message.sequence || message.receivedAt,
+            mobileSequence: message.mobileSequence || null,
+            mobileSentAt: message.mobileSentAt || null,
           });
           setRemoteCameraStatus('Receiving phone camera stream');
           setActiveStep((current) => current === 'exercise' ? current : 'analysis');

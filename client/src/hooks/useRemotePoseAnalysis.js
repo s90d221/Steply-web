@@ -12,6 +12,8 @@ const initialState = {
   phase: 'waiting',
 };
 
+const MAX_REMOTE_FRAME_AGE_MS = 500;
+
 function recommendationLevelForFallback(testType, state) {
   const primaryValue = Number(state.primaryValue ?? state.repetitionCount ?? 0);
   if (!state.isFullBodyVisible) return 'recheck';
@@ -63,7 +65,33 @@ function createPoseWorker() {
   return new Worker(new URL('../pose/poseLandmarker.worker.js', import.meta.url), { type: 'module' });
 }
 
-export function useRemotePoseAnalysis({ session, selectedTest, remoteCameraFrame, autoStart = true, onFinalResult }) {
+function timingFromFrameMessage(message) {
+  const receivedAt = Number(message?.receivedAt);
+  const analyzedAt = Number(message?.analyzedAt);
+  if (!Number.isFinite(receivedAt) || !Number.isFinite(analyzedAt)) return null;
+  return {
+    source: message.source || message.type,
+    sequence: message.sequence ?? null,
+    receivedAt,
+    analyzedAt,
+    latencyMs: Math.max(0, analyzedAt - receivedAt),
+  };
+}
+
+function isRemoteFrameStale(frame, now = Date.now()) {
+  const receivedAt = Number(frame?.receivedAt);
+  if (!Number.isFinite(receivedAt)) return false;
+  return now - receivedAt > MAX_REMOTE_FRAME_AGE_MS;
+}
+
+export function useRemotePoseAnalysis({
+  session,
+  selectedTest,
+  remoteCameraFrame,
+  autoStart = true,
+  onFinalResult,
+  onFrameProcessed,
+}) {
   const workerRef = useRef(null);
   const lastSubmittedFrameRef = useRef(0);
   const runningRef = useRef(false);
@@ -77,11 +105,16 @@ export function useRemotePoseAnalysis({ session, selectedTest, remoteCameraFrame
   const [analysisResult, setAnalysisResult] = useState(null);
   const [landmarks, setLandmarks] = useState([]);
   const [rawLandmarks, setRawLandmarks] = useState([]);
+  const [analysisLandmarks, setAnalysisLandmarks] = useState([]);
+  const [analysisRawLandmarks, setAnalysisRawLandmarks] = useState([]);
   const [frameSize, setFrameSize] = useState(null);
   const [processingStats, setProcessingStats] = useState(null);
   const [trackingQuality, setTrackingQuality] = useState(null);
   const [cameraReadiness, setCameraReadiness] = useState(null);
   const [smoothingStats, setSmoothingStats] = useState(null);
+  const [brightnessStats, setBrightnessStats] = useState(null);
+  const [brightnessCalibration, setBrightnessCalibration] = useState(null);
+  const [frameTiming, setFrameTiming] = useState(null);
   const [error, setError] = useState('');
   const [isRunning, setIsRunning] = useState(false);
   const [debugLog, setDebugLog] = useState([]);
@@ -96,9 +129,43 @@ export function useRemotePoseAnalysis({ session, selectedTest, remoteCameraFrame
       if (message.type === 'debug') {
         setDebugLog((current) => [...current.slice(-19), message]);
       }
+      if (message.type === 'frame-skipped') {
+        setDebugLog((current) => [...current.slice(-19), {
+          type: 'debug',
+          event: 'pose-frame-skipped',
+          details: {
+            source: message.source || 'unknown',
+            reason: message.reason || 'stale',
+            ageMs: Math.round(message.ageMs || 0),
+            maxFrameAgeMs: message.maxFrameAgeMs,
+            receivedAt: message.receivedAt,
+            skippedAt: message.at,
+          },
+          at: message.at || Date.now(),
+        }]);
+      }
       if (message.type === 'ready') {
         setError('');
         setWorkerStatus('ready');
+      }
+      if (message.type === 'pose-frame') {
+        recoverableErrorCountRef.current = 0;
+        setError('');
+        setLandmarks(message.landmarks || []);
+        setRawLandmarks(message.rawLandmarks || []);
+        if (message.frameSize) setFrameSize(message.frameSize);
+        const timing = timingFromFrameMessage(message);
+        setFrameTiming(timing);
+        onFrameProcessed?.({
+          ...(timing || {}),
+          source: message.source || 'pose-frame',
+          sequence: message.sequence ?? null,
+          cameraFrameSequence: message.cameraFrameSequence ?? message.sequence ?? null,
+          mobileSequence: message.mobileSequence ?? null,
+          receivedAt: message.receivedAt,
+          analyzedAt: message.analyzedAt,
+        });
+        setWorkerStatus(runningRef.current ? 'tracking' : 'previewing');
       }
       if (message.type === 'session-started') {
         if (finishFallbackTimerRef.current) window.clearTimeout(finishFallbackTimerRef.current);
@@ -113,6 +180,10 @@ export function useRemotePoseAnalysis({ session, selectedTest, remoteCameraFrame
         setTrackingQuality(null);
         setCameraReadiness(null);
         setSmoothingStats(null);
+        setBrightnessStats(null);
+        setFrameTiming(null);
+        setAnalysisLandmarks([]);
+        setAnalysisRawLandmarks([]);
         if (message.state) {
           analysisStateRef.current = message.state;
           setAnalysisState(message.state);
@@ -125,24 +196,30 @@ export function useRemotePoseAnalysis({ session, selectedTest, remoteCameraFrame
           analysisStateRef.current = message.state;
           setAnalysisState(message.state);
         }
-        setLandmarks(message.landmarks || []);
-        setRawLandmarks(message.rawLandmarks || []);
+        setAnalysisLandmarks(message.landmarks || []);
+        setAnalysisRawLandmarks(message.rawLandmarks || []);
         if (message.frameSize) setFrameSize(message.frameSize);
         if (message.processing) setProcessingStats(message.processing);
         setTrackingQuality(message.trackingQuality || null);
         setCameraReadiness(message.cameraReadiness || null);
         setSmoothingStats(message.smoothing || null);
+        if ('brightness' in message) setBrightnessStats(message.brightness || null);
+        if ('brightnessCalibration' in message) setBrightnessCalibration(message.brightnessCalibration || null);
+        setFrameTiming(timingFromFrameMessage(message));
         setWorkerStatus('analyzing');
       }
       if (message.type === 'preview-frame') {
         recoverableErrorCountRef.current = 0;
         setError('');
-        setLandmarks(message.landmarks || []);
-        setRawLandmarks(message.rawLandmarks || []);
+        setAnalysisLandmarks(message.landmarks || []);
+        setAnalysisRawLandmarks(message.rawLandmarks || []);
         if (message.frameSize) setFrameSize(message.frameSize);
         setTrackingQuality(message.trackingQuality || null);
         setCameraReadiness(message.cameraReadiness || null);
         setSmoothingStats(message.smoothing || null);
+        if ('brightness' in message) setBrightnessStats(message.brightness || null);
+        if ('brightnessCalibration' in message) setBrightnessCalibration(message.brightnessCalibration || null);
+        setFrameTiming(timingFromFrameMessage(message));
         setWorkerStatus('previewing');
       }
       if (message.type === 'session-finished') {
@@ -168,11 +245,16 @@ export function useRemotePoseAnalysis({ session, selectedTest, remoteCameraFrame
         setTrackingQuality(null);
         setCameraReadiness(null);
         setSmoothingStats(null);
+        setBrightnessStats(null);
+        setBrightnessCalibration(null);
+        setFrameTiming(null);
         setError('');
         analysisStateRef.current = message.state || initialState;
         setAnalysisState(message.state || initialState);
         setLandmarks([]);
         setRawLandmarks([]);
+        setAnalysisLandmarks([]);
+        setAnalysisRawLandmarks([]);
         setFrameSize(null);
         setDebugLog([]);
         recoverableErrorCountRef.current = 0;
@@ -208,7 +290,7 @@ export function useRemotePoseAnalysis({ session, selectedTest, remoteCameraFrame
       worker.terminate();
       workerRef.current = null;
     };
-  }, [onFinalResult]);
+  }, [onFinalResult, onFrameProcessed]);
 
   const startAnalysis = useCallback(() => {
     if (!workerRef.current || !session?.id) return;
@@ -218,9 +300,13 @@ export function useRemotePoseAnalysis({ session, selectedTest, remoteCameraFrame
     setTrackingQuality(null);
     setCameraReadiness(null);
     setSmoothingStats(null);
+    setBrightnessStats(null);
+    setFrameTiming(null);
     analysisStateRef.current = initialState;
     setLandmarks([]);
     setRawLandmarks([]);
+    setAnalysisLandmarks([]);
+    setAnalysisRawLandmarks([]);
     setFrameSize(null);
     lastSubmittedFrameRef.current = 0;
     autoFinishedRef.current = false;
@@ -297,10 +383,15 @@ export function useRemotePoseAnalysis({ session, selectedTest, remoteCameraFrame
     setTrackingQuality(null);
     setCameraReadiness(null);
     setSmoothingStats(null);
+    setBrightnessStats(null);
+    setBrightnessCalibration(null);
+    setFrameTiming(null);
     analysisStateRef.current = initialState;
     setAnalysisState(initialState);
     setLandmarks([]);
     setRawLandmarks([]);
+    setAnalysisLandmarks([]);
+    setAnalysisRawLandmarks([]);
     setFrameSize(null);
     setError('');
     lastSubmittedFrameRef.current = 0;
@@ -309,6 +400,7 @@ export function useRemotePoseAnalysis({ session, selectedTest, remoteCameraFrame
 
   useEffect(() => {
     if (!remoteCameraFrame?.src || !session?.id) return;
+    if (isRemoteFrameStale(remoteCameraFrame)) return;
     if (autoStart && !runningRef.current && !analysisResult) {
       startAnalysis();
       return;
@@ -322,6 +414,8 @@ export function useRemotePoseAnalysis({ session, selectedTest, remoteCameraFrame
         type: 'preview-frame',
         frame: remoteCameraFrame.blob || remoteCameraFrame.src,
         receivedAt: remoteCameraFrame.receivedAt || Date.now(),
+        cameraFrameSequence: remoteCameraFrame.sequence,
+        mobileSequence: remoteCameraFrame.mobileSequence || null,
         selectedTest,
       });
       return;
@@ -330,9 +424,22 @@ export function useRemotePoseAnalysis({ session, selectedTest, remoteCameraFrame
       type: 'frame',
       frame: remoteCameraFrame.blob || remoteCameraFrame.src,
       receivedAt: remoteCameraFrame.receivedAt || Date.now(),
+      cameraFrameSequence: remoteCameraFrame.sequence,
+      mobileSequence: remoteCameraFrame.mobileSequence || null,
       selectedTest,
     });
-  }, [analysisResult, autoStart, remoteCameraFrame?.blob, remoteCameraFrame?.receivedAt, remoteCameraFrame?.sequence, remoteCameraFrame?.src, selectedTest, session?.id, startAnalysis]);
+  }, [
+    analysisResult,
+    autoStart,
+    remoteCameraFrame?.blob,
+    remoteCameraFrame?.mobileSequence,
+    remoteCameraFrame?.receivedAt,
+    remoteCameraFrame?.sequence,
+    remoteCameraFrame?.src,
+    selectedTest,
+    session?.id,
+    startAnalysis,
+  ]);
 
   const durationSeconds = analysisState.durationSeconds || analysisResult?.durationSeconds || 30;
   const progress = Math.min(100, Math.round(((analysisState.elapsedSeconds || 0) / durationSeconds) * 100));
@@ -364,11 +471,16 @@ export function useRemotePoseAnalysis({ session, selectedTest, remoteCameraFrame
     analysisResult,
     landmarks,
     rawLandmarks,
+    analysisLandmarks,
+    analysisRawLandmarks,
     frameSize,
     processingStats,
     trackingQuality,
     cameraReadiness,
     smoothingStats,
+    brightnessStats,
+    brightnessCalibration,
+    frameTiming,
     error,
     debugLog,
     isRunning,
@@ -386,11 +498,16 @@ export function useRemotePoseAnalysis({ session, selectedTest, remoteCameraFrame
     analysisResult,
     landmarks,
     rawLandmarks,
+    analysisLandmarks,
+    analysisRawLandmarks,
     frameSize,
     processingStats,
     trackingQuality,
     cameraReadiness,
     smoothingStats,
+    brightnessStats,
+    brightnessCalibration,
+    frameTiming,
     error,
     debugLog,
     isRunning,

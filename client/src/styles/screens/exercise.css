@@ -1,3 +1,11 @@
+.panel-grid--exercise {
+  gap: 12px;
+}
+
+.panel-grid--exercise .steply-card {
+  padding: clamp(16px, 1.6vw, 22px);
+}
+
 .recommendation-header {
   display: flex;
   align-items: center;
@@ -8,26 +16,28 @@
 }
 .recommendation-header h2 {
   max-width: 840px;
-  font-size: var(--distance-font-title);
+  font-size: clamp(34px, 3vw, 44px);
+  line-height: 1.1;
   font-weight: 800;
 }
 .recommendation-header p {
   max-width: 860px;
   color: var(--distance-contrast-text);
-  font-size: var(--distance-font-body);
+  font-size: clamp(20px, 1.8vw, 24px);
+  line-height: 1.34;
   font-weight: 700;
 }
 
 .recommendation-time {
   flex: 0 0 auto;
-  padding: 18px 22px;
+  padding: 12px 18px;
   border-radius: var(--radius-button);
   background: var(--surface);
   color: var(--tertiary);
   font-size: var(--distance-font-small);
   font-weight: 700;
 }
-.recommendation-time strong { font-size: 54px; letter-spacing: 0; }
+.recommendation-time strong { font-size: clamp(42px, 4vw, 54px); letter-spacing: 0; }
 
 .ar-game {
   display: grid;
@@ -380,13 +390,14 @@
 .exercise-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--distance-gap);
+  gap: 12px;
 }
 
 .exercise-card {
   display: grid;
-  gap: 16px;
-  min-height: 320px;
+  align-content: start;
+  gap: 10px;
+  min-height: 0;
 }
 .exercise-card--complete { background: var(--primary-container); }
 .exercise-card--active {
@@ -397,44 +408,53 @@
 .exercise-card__number {
   display: grid;
   place-items: center;
-  width: 58px;
-  height: 58px;
+  width: 52px;
+  height: 52px;
   border-radius: 999px;
   color: var(--on-primary);
   background: var(--primary);
   font-weight: 800;
-  font-size: 24px;
+  font-size: 22px;
 }
 .exercise-card__chip {
-  padding: 10px 14px;
+  padding: 8px 12px;
   border-radius: 999px;
   background: var(--secondary-container);
   color: var(--secondary);
   font-weight: 700;
-  font-size: 20px;
+  font-size: 18px;
 }
-.exercise-card h3 { font-size: 28px; font-weight: 800; }
-.exercise-card p { font-size: var(--distance-font-small); font-weight: 700; }
+.exercise-card h3 {
+  font-size: clamp(23px, 2vw, 28px);
+  line-height: 1.12;
+  font-weight: 800;
+}
+.exercise-card p {
+  font-size: clamp(18px, 1.35vw, 22px);
+  line-height: 1.32;
+  font-weight: 700;
+}
 .exercise-card__meta {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
 .exercise-card__meta span {
-  padding: 12px;
+  padding: 9px 10px;
   border-radius: var(--radius-input);
   background: var(--surface-variant);
   color: var(--primary);
   font-weight: 700;
-  font-size: var(--distance-font-small);
+  font-size: 18px;
 }
 .exercise-card__safety {
   align-self: end;
-  padding: 13px;
+  padding: 10px;
   border-radius: var(--radius-notice);
   background: var(--tertiary-container);
   color: var(--tertiary);
-  font-size: var(--distance-font-small);
+  font-size: 18px;
+  line-height: 1.3;
   font-weight: 600;
 }
 .exercise-card__action {
@@ -443,10 +463,15 @@
 .exercise-card__action .steply-button {
   width: 100%;
 }
+.exercise-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
 .ar-game-launch-card {
   display: grid;
   align-items: center;
-  min-height: 240px;
+  min-height: 156px;
   background:
     linear-gradient(color-mix(in srgb, var(--primary) 10%, transparent) 1px, transparent 1px),
     linear-gradient(90deg, color-mix(in srgb, var(--primary) 10%, transparent) 1px, transparent 1px),
@@ -456,13 +481,21 @@
 .ar-game-launch-card h3 {
   margin: 8px 0;
   color: var(--text-primary);
-  font-size: 36px;
+  font-size: clamp(30px, 2.6vw, 36px);
+  line-height: 1.12;
   font-weight: 800;
 }
 .ar-game-launch-card p {
   max-width: 720px;
   color: var(--distance-contrast-text);
-  font-size: var(--distance-font-body);
+  font-size: clamp(19px, 1.5vw, 24px);
+  line-height: 1.34;
   font-weight: 700;
 }
 .wide-cta { max-width: 620px; justify-self: center; }
+
+@media (max-width: 720px) {
+  .exercise-actions {
+    grid-template-columns: 1fr;
+  }
+}

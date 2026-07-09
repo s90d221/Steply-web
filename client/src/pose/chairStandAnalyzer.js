@@ -15,7 +15,8 @@ const ChairStandPosePhase = {
 };
 
 const MIN_LANDMARK_VISIBILITY = 0.45;
-const REQUIRED_STABLE_FRAMES = 2;
+const REQUIRED_SEATED_FRAMES = 2;
+const REQUIRED_STANDING_FRAMES = 1;
 const ARM_SUPPORT_DISQUALIFY_FRAMES = 3;
 const ARM_SUPPORT_Y_MARGIN = 0.05;
 const STANDING_KNEE_ANGLE = 150;
@@ -50,6 +51,14 @@ const minOrNull = (values) => {
 };
 const distance = (first, second) => Math.hypot(first.x - second.x, first.y - second.y);
 const midpoint = (first, second) => ({ x: (first.x + second.x) / 2, y: (first.y + second.y) / 2 });
+const averagePoint = (points) => {
+  const visible = points.filter(Boolean);
+  if (!visible.length) return null;
+  return {
+    x: visible.reduce((sum, point) => sum + point.x, 0) / visible.length,
+    y: visible.reduce((sum, point) => sum + point.y, 0) / visible.length,
+  };
+};
 
 function angleDegrees(first, center, third) {
   const firstVectorX = first.x - center.x;
@@ -233,9 +242,10 @@ export class MediaPipeChairStandAnalyzer {
     this.kinematicSamples = [];
     this.repEvents = [];
     this.repetitionCount = 0;
-    this.readyForNextStand = true;
+    this.readyForNextStand = false;
     this.cycleActive = false;
     this.cycleHasStanding = false;
+    this.cycleCounted = false;
     this.cycleStartedAtMs = null;
     this.cycleStandingAtMs = null;
     this.standingStreak = 0;
@@ -249,7 +259,18 @@ export class MediaPipeChairStandAnalyzer {
     this.standingStreak = features.phase === ChairStandPosePhase.Standing ? this.standingStreak + 1 : 0;
     this.seatedStreak = features.phase === ChairStandPosePhase.Seated ? this.seatedStreak + 1 : 0;
 
-    if (!this.cycleActive && this.seatedStreak >= REQUIRED_STABLE_FRAMES) {
+    if (this.seatedStreak >= REQUIRED_SEATED_FRAMES) {
+      if (this.cycleActive) {
+        const latestRep = this.repEvents.at(-1);
+        if (this.cycleCounted && latestRep && latestRep.seatedAtMs === null) {
+          latestRep.seatedAtMs = timestampMs;
+        }
+        this.cycleActive = false;
+        this.cycleHasStanding = false;
+        this.cycleCounted = false;
+        this.cycleStartedAtMs = null;
+        this.cycleStandingAtMs = null;
+      }
       this.readyForNextStand = true;
     }
 
@@ -262,25 +283,18 @@ export class MediaPipeChairStandAnalyzer {
       this.cycleActive = true;
       this.cycleStartedAtMs = this.cycleStartedAtMs || timestampMs;
       this.readyForNextStand = false;
+      this.cycleCounted = false;
     }
 
     if (
       this.cycleActive &&
-      this.standingStreak >= REQUIRED_STABLE_FRAMES &&
+      !this.cycleCounted &&
+      this.standingStreak >= REQUIRED_STANDING_FRAMES &&
       features.fullBodyVisible &&
       !this.armUseDisqualified
     ) {
       this.cycleHasStanding = true;
       this.cycleStandingAtMs = this.cycleStandingAtMs || timestampMs;
-    }
-
-    if (
-      this.cycleActive &&
-      this.cycleHasStanding &&
-      this.seatedStreak >= REQUIRED_STABLE_FRAMES &&
-      features.fullBodyVisible &&
-      !this.armUseDisqualified
-    ) {
       this.repetitionCount += 1;
       this.countedAtMs.push(timestampMs);
       this.repEvents.push({
@@ -288,14 +302,11 @@ export class MediaPipeChairStandAnalyzer {
         countedAtMs: timestampMs,
         startedAtMs: this.cycleStartedAtMs,
         stoodAtMs: this.cycleStandingAtMs,
-        seatedAtMs: timestampMs,
+        seatedAtMs: null,
         phase: features.phase,
       });
-      this.cycleActive = false;
-      this.cycleHasStanding = false;
-      this.cycleStartedAtMs = null;
-      this.cycleStandingAtMs = null;
-      this.readyForNextStand = true;
+      this.cycleCounted = true;
+      this.readyForNextStand = false;
     }
   }
 
@@ -533,14 +544,16 @@ export class MediaPipeChairStandAnalyzer {
     const rightKnee = visiblePoint(PoseLandmarks.RightKnee);
     const leftAnkle = visiblePoint(PoseLandmarks.LeftAnkle);
     const rightAnkle = visiblePoint(PoseLandmarks.RightAnkle);
+    const leftSideVisible = Boolean(leftShoulder && leftHip && leftKnee && leftAnkle);
+    const rightSideVisible = Boolean(rightShoulder && rightHip && rightKnee && rightAnkle);
 
-    if (!leftShoulder || !rightShoulder || !leftHip || !rightHip || !leftKnee || !rightKnee || !leftAnkle || !rightAnkle) {
+    if (!leftSideVisible && !rightSideVisible) {
       return null;
     }
 
-    const shoulderCenter = midpoint(leftShoulder, rightShoulder);
-    const hipCenter = midpoint(leftHip, rightHip);
-    const kneeCenter = midpoint(leftKnee, rightKnee);
+    const shoulderCenter = midpoint(leftShoulder, rightShoulder) || averagePoint([leftShoulder, rightShoulder]);
+    const hipCenter = midpoint(leftHip, rightHip) || averagePoint([leftHip, rightHip]);
+    const kneeCenter = midpoint(leftKnee, rightKnee) || averagePoint([leftKnee, rightKnee]);
     const bodyCenter = {
       x: (shoulderCenter.x + hipCenter.x) / 2,
       y: (shoulderCenter.y + hipCenter.y) / 2,
@@ -557,16 +570,21 @@ export class MediaPipeChairStandAnalyzer {
     );
     const leftKneeAngle = Number.isFinite(jointAngles.knees.left)
       ? jointAngles.knees.left
-      : angleDegrees(leftHip, leftKnee, leftAnkle);
+      : leftSideVisible ? angleDegrees(leftHip, leftKnee, leftAnkle) : null;
     const rightKneeAngle = Number.isFinite(jointAngles.knees.right)
       ? jointAngles.knees.right
-      : angleDegrees(rightHip, rightKnee, rightAnkle);
+      : rightSideVisible ? angleDegrees(rightHip, rightKnee, rightAnkle) : null;
     const leftHipAngle = Number.isFinite(jointAngles.hips.left) ? jointAngles.hips.left : null;
     const rightHipAngle = Number.isFinite(jointAngles.hips.right) ? jointAngles.hips.right : null;
-    const averageKneeAngle = (leftKneeAngle + rightKneeAngle) / 2;
+    const kneeAngles = [leftKneeAngle, rightKneeAngle].filter(Number.isFinite);
+    const averageKneeAngle = kneeAngles.reduce((sum, angle) => sum + angle, 0) / kneeAngles.length;
     const hipAboveKnees = kneeCenter.y - hipCenter.y;
-    const fullBodyVisible = RequiredChairStandLandmarks.every((name) => visiblePoint(name));
-    const shoulderWidth = Math.max(distance(leftShoulder, rightShoulder), 0.08);
+    const fullBodyVisible = leftSideVisible || rightSideVisible;
+    const shoulderWidth = Math.max(
+      leftShoulder && rightShoulder ? distance(leftShoulder, rightShoulder) : 0,
+      leftHip && rightHip ? distance(leftHip, rightHip) : 0,
+      0.08,
+    );
     const bodyHeight = this.bodyHeight(frame) || Math.max(distance(shoulderCenter, hipCenter) * 3, 0.4);
     const hipVerticalVelocityBodyHeightsPerSec = previousFeatures?.hipCenter && Number.isFinite(deltaSeconds) && deltaSeconds > 0
       ? (hipCenter.y - previousFeatures.hipCenter.y) / bodyHeight / deltaSeconds
@@ -592,7 +610,9 @@ export class MediaPipeChairStandAnalyzer {
       shoulderHipOffsetRatio: (shoulderCenter.x - hipCenter.x) / shoulderWidth,
       score: trunkLeanScore,
     };
-    const symmetryScore = clamp(1 - Math.abs(leftKneeAngle - rightKneeAngle) / 55, 0, 1);
+    const symmetryScore = Number.isFinite(leftKneeAngle) && Number.isFinite(rightKneeAngle)
+      ? clamp(1 - Math.abs(leftKneeAngle - rightKneeAngle) / 55, 0, 1)
+      : 1;
     const stabilityScore = this.stabilityScoreWith(bodyCenter);
     const confidenceValues = RequiredChairStandLandmarks
       .map((name) => this.landmark(frame, name)?.visibility ?? frame.confidence)

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { MetricCard, SteplyButton, SteplyCard, StatusPill, TimerCircle } from './SteplyPrimitives';
+import { SteplyButton, SteplyCard, TimerCircle } from './SteplyPrimitives';
 import { PoseOverlay } from './pose/PoseOverlay';
 import { READY_HOLD_SECONDS, evaluateSetupReadiness } from '../pose/poseQuality';
 import { recommendationLabel } from '../pose/recommendationRules';
-import { roundMetric, statusFromScore } from '../utils/format';
+import { roundMetric } from '../utils/format';
 import { movementTests } from '../data/movementTests';
 import standingPostureGuide from '../assets/movement-guides/standing-posture-check.png';
 import chairStandGuide from '../assets/movement-guides/chair-stand-check.png';
@@ -15,6 +15,8 @@ const SHOW_DEBUG_TOOLS = Boolean(
     && typeof window !== 'undefined'
     && new URLSearchParams(window.location.search).get('poseDebug') === '1'
 );
+
+const selectableMovementTests = movementTests.filter((test) => test.id !== 'timed_up_and_go');
 
 const movementGuideContent = {
   four_stage_balance: {
@@ -98,6 +100,24 @@ const movementGuideContent = {
 function percent(value) {
   if (!Number.isFinite(value)) return '-';
   return `${Math.round(value * 100)}%`;
+}
+
+function signedPercent(value) {
+  if (!Number.isFinite(value)) return '-';
+  const rounded = Math.round(value * 100);
+  return `${rounded > 0 ? '+' : ''}${rounded}%`;
+}
+
+function milliseconds(value) {
+  if (!Number.isFinite(value)) return '-';
+  return `${Math.round(value)} ms`;
+}
+
+function timeWithMilliseconds(timestamp) {
+  const value = Number(timestamp);
+  if (!Number.isFinite(value)) return '-';
+  const date = new Date(value);
+  return `${date.toLocaleTimeString()}.${String(date.getMilliseconds()).padStart(3, '0')}`;
 }
 
 function phaseLabel(phase) {
@@ -207,8 +227,6 @@ export function AnalysisPanel({
     ?? state.trackingQualityScore
     ?? state.confidence
     ?? 0;
-  const score = displayFrame?.src ? Math.round(trackingQualityScore * 100) : 0;
-  const status = state.warningMessage ? 'practice_needed' : statusFromScore(score || 72);
   const durationSeconds = state.durationSeconds || poseAnalysis?.durationSeconds || result?.durationSeconds || 30;
 
   const analysisElapsedSeconds = Number.isFinite(Number(state.elapsedSeconds))
@@ -265,6 +283,18 @@ export function AnalysisPanel({
   const receivedTime = remoteCameraFrame?.receivedAt
     ? new Date(remoteCameraFrame.receivedAt).toLocaleTimeString()
     : '-';
+  const frameTiming = poseAnalysis?.frameTiming || null;
+  const frameTimingText = frameTiming
+    ? `${timeWithMilliseconds(frameTiming.receivedAt)} -> ${timeWithMilliseconds(frameTiming.analyzedAt)}`
+    : '-';
+  const brightnessCalibration = poseAnalysis?.brightnessCalibration || null;
+  const brightnessStats = poseAnalysis?.brightnessStats || null;
+  const brightnessCalibrationText = brightnessCalibration?.sampleCount
+    ? `${percent(brightnessCalibration.averageBrightness)} -> ${percent(brightnessCalibration.calibratedAverageBrightness)} (${signedPercent(brightnessCalibration.correction)}, n=${brightnessCalibration.sampleCount})`
+    : '-';
+  const brightnessFrameText = brightnessStats && Number.isFinite(brightnessStats.raw)
+    ? `${percent(brightnessStats.raw)} -> ${percent(brightnessStats.corrected)}`
+    : '-';
 
   const resultLevel = result?.recommendationLevel
     ? recommendationLabel(result.recommendationLevel)
@@ -303,6 +333,13 @@ export function AnalysisPanel({
   const setupCountdown = displaySetupCheck.isReady && !isMissionRunning && !isSetupImageMode
     ? Math.max(1, READY_HOLD_SECONDS - Math.floor(readyHoldSeconds))
     : null;
+  const hasLiveCameraFrame = Boolean(remoteCameraFrame?.src && !frameLoadError && !isSetupImageMode);
+  const canStartMission = Boolean(
+    hasLiveCameraFrame
+      && !isMissionRunning
+      && !poseAnalysis?.analysisResult
+      && startAnalysis
+  );
   const setupMessage = isMissionRunning
     ? (qualityWarning || friendlyStatus)
     : displayFrame?.src && !frameLoadError
@@ -450,19 +487,33 @@ export function AnalysisPanel({
   const selectedTestDuration = selectedTestInfo?.duration || `${durationSeconds} sec`;
   const movementGuide = movementGuideContent[selectedTest] || movementGuideContent.chair_stand;
   const canUseReferenceOverlay = selectedTest === 'standing_posture' || selectedTest === 'four_stage_balance';
+  const isSetupCountingDown = setupCountdown !== null;
+  const timerGuidanceTitle = isMissionRunning
+    ? 'Keep steady'
+    : isSetupCountingDown
+      ? `Starting in ${setupCountdown} sec`
+      : 'Full body in view';
+  const timerGuidanceBody = isMissionRunning
+    ? 'Eyes forward, move slowly'
+    : isSetupCountingDown
+      ? 'Hold your setup position'
+      : 'Stand 1.5m from the phone';
+  const timerDisplayValue = isSetupCountingDown ? setupCountdown : elapsedSeconds;
+  const timerDisplayMax = isSetupCountingDown ? READY_HOLD_SECONDS : durationSeconds;
+  const timerDisplayLabel = isSetupCountingDown ? 'setup' : 'sec';
+
   return (
     <div className="analysis-layout analysis-layout--guided distance-mode distance-mode--analysis">
-      <SteplyCard className="arena-card arena-card--guided">
-        <div className="arena-card__topbar">
+      <aside className="mission-guide-column">
+        <SteplyCard className="mission-goal-card">
           <div>
-            <div className="eyebrow">{isMissionRunning ? 'Movement Mission' : 'Camera Setup'}</div>
-            <h2>{isMissionRunning ? 'Today’s Movement Mission' : selectedTestTitle}</h2>
+            <div className="eyebrow">Goal</div>
+            <h2>{selectedTestTitle}</h2>
           </div>
-          <StatusPill status={status}>{isMissionRunning ? 'Mission in progress' : setupStatus}</StatusPill>
-        </div>
+        </SteplyCard>
 
         <div className="analysis-test-tabs analysis-test-tabs--guided" aria-label="Movement test selection">
-          {movementTests.map((test, index) => (
+          {selectableMovementTests.map((test, index) => (
             <button
               key={test.id}
               type="button"
@@ -475,270 +526,18 @@ export function AnalysisPanel({
           ))}
         </div>
 
-        <div className="analysis-guided-body">
-          <SteplyCard className="movement-guide-card">
-            <h3>{isMissionRunning ? 'Follow the stance' : 'Set up your space'}</h3>
+        <SteplyCard className="movement-guide-card">
+          <h3>{isMissionRunning ? 'Follow the stance' : 'Guide image'}</h3>
 
-            <div className="movement-guide-visual">
-              <img
-                className="movement-guide-image"
-                src={movementGuide.image}
-                alt={movementGuide.alt}
-              />
-            </div>
-
-            <ul className="movement-guide-list">
-              {movementGuide.steps.map((step) => (
-                <li key={step}>{step}</li>
-              ))}
-            </ul>
-
-            <div className="movement-guide-tip">
-              <strong>Tip</strong>
-              <p>{movementGuide.tip}</p>
-            </div>
-
-            <div className="movement-setup-guide">
-              <strong>{movementGuide.setup.title}</strong>
-              <p>{movementGuide.setup.body}</p>
-              <ul>
-                {movementGuide.setup.points.map((point) => (
-                  <li key={point}>{point}</li>
-                ))}
-              </ul>
-            </div>
-          </SteplyCard>
-
-          <div className="analysis-main-zone">
-            <div className="arena-stage arena-stage--camera arena-stage--guided">
-              {displayFrame?.src ? (
-                <div className="remote-camera-layer">
-                  <img
-                    className="remote-camera-frame"
-                    src={displayFrame.src}
-                    alt={isSetupImageMode ? 'Uploaded setup preview' : 'Camera stream from the phone'}
-                    onLoad={() => setFrameLoadError('')}
-                    onError={() => setFrameLoadError('Frame received, but the browser could not decode the image.')}
-                  />
-                  {canUseReferenceOverlay && showReferenceOverlay ? (
-                    <img
-                      className="reference-pose-overlay"
-                      src={standingReferenceOverlay}
-                      alt="Standing posture reference overlay"
-                      style={{ opacity: referenceOverlayOpacity }}
-                    />
-                  ) : null}
-                  <PoseOverlay
-                    landmarks={poseAnalysis?.landmarks || []}
-                    rawLandmarks={SHOW_DEBUG_TOOLS ? poseAnalysis?.rawLandmarks || [] : []}
-                    showRaw={SHOW_DEBUG_TOOLS}
-                    frameSize={poseAnalysis?.frameSize}
-                  />
-                </div>
-              ) : (
-                <>
-                  <div className="stage-grid" aria-hidden="true" />
-                  <div className="coach-figure coach-figure--stage" aria-label="Movement guide figure">
-                    <span className="coach-head" />
-                    <span className="coach-body" />
-                    <span className="coach-arm coach-arm--left" />
-                    <span className="coach-arm coach-arm--right" />
-                    <span className="coach-leg coach-leg--left" />
-                    <span className="coach-leg coach-leg--right" />
-                    <span className="chair-seat" />
-                    <span className="chair-leg chair-leg--left" />
-                    <span className="chair-leg chair-leg--right" />
-                  </div>
-                  <div className="stage-pulse" />
-                </>
-              )}
-
-              <div className="guided-camera-focus" aria-hidden="true">
-                <span />
-                <span />
-                <span />
-                <span />
-              </div>
-
-              {selectedTest === 'four_stage_balance' ? (
-                <div className={isMissionRunning ? 'foot-placement-guide foot-placement-guide--active' : 'foot-placement-guide'} aria-hidden="true">
-                  <span className="foot-placement-guide__foot foot-placement-guide__foot--back" />
-                  <span className="foot-placement-guide__foot foot-placement-guide__foot--front" />
-                  <strong>Tandem stance</strong>
-                </div>
-              ) : null}
-
-              <div className="guided-camera-message">
-                <span className="guided-camera-icon">▶</span>
-                <div>
-                  <strong>{setupMessage}</strong>
-                  <p>
-                    {isMissionRunning
-                      ? 'Hold this position gently and keep your eyes forward.'
-                      : isSetupImageMode
-                        ? 'This image is only for checking setup.'
-                      : displaySetupCheck.isReady
-                        ? 'The mission can begin when you press the ready button.'
-                        : movementGuide.setup.body}
-                  </p>
-                </div>
-              </div>
-
-              <div className="remote-camera-badge">
-                <span
-                  className={
-                    displayFrame?.src && !frameLoadError
-                      ? 'remote-camera-dot remote-camera-dot--live'
-                      : 'remote-camera-dot'
-                  }
-                />
-                {cameraStatusText}
-              </div>
-
-              {SHOW_DEBUG_TOOLS ? (
-                <div className="pose-debug-overlay">
-                  <strong>Pose Debug</strong>
-                  <span>Quality {percent(trackingQualityScore)}</span>
-                  <span>Full body {displaySetupCheck.fullBodyVisible ? 'yes' : 'no'}</span>
-                  <span>Feet {displaySetupCheck.feetVisible ? 'yes' : 'no'}</span>
-                  <span>Mode {poseAnalysis?.smoothingStats?.mode || '-'}</span>
-                </div>
-              ) : null}
-            </div>
-
-            <p className="coach-message coach-message--guided">
-              {setupMessage}
-            </p>
-
-            <SteplyCard className="setup-guide-card">
-              <div className="setup-guide-card__header">
-                <div>
-                  <div className="eyebrow">{isMissionRunning ? 'Mission Guidance' : 'Camera Setup'}</div>
-                  <h3>{setupStatus}</h3>
-                </div>
-                <div className={displaySetupCheck.isReady ? 'setup-countdown setup-countdown--ready' : 'setup-countdown'}>
-                  {setupCountdown || Math.round(displaySetupCheck.readyScore * 100)}
-                  <span>{setupCountdown ? 'sec' : 'ready'}</span>
-                </div>
-              </div>
-
-              <ul className="setup-checklist">
-                {setupChecklist.map((item) => (
-                  <SetupChecklistItem key={item.label} label={item.label} passed={item.passed} />
-                ))}
-              </ul>
-
-              {displaySetupCheck.warnings[0] && !isMissionRunning ? (
-                <p className="setup-warning">{localizedSetupText(displaySetupCheck.warnings[0])}</p>
-              ) : null}
-
-              {qualityWarning ? (
-                <p className="setup-warning setup-warning--active">{qualityWarning}</p>
-              ) : null}
-
-              <div className="setup-image-actions">
-                <input
-                  ref={setupImageInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="setup-image-input"
-                  onChange={handleSetupImageChange}
-                />
-                <SteplyButton
-                  type="button"
-                  variant="secondary"
-                  onClick={() => setupImageInputRef.current?.click()}
-                >
-                  Check a setup image
-                </SteplyButton>
-                <SteplyButton
-                  type="button"
-                  variant="ghost"
-                  onClick={clearSetupImage}
-                  disabled={!setupImageFrame}
-                >
-                  Clear image
-                </SteplyButton>
-              </div>
-
-              <div className="reference-overlay-controls">
-                <label className="reference-overlay-toggle">
-                  <input
-                    type="checkbox"
-                    checked={showReferenceOverlay}
-                    disabled={!canUseReferenceOverlay}
-                    onChange={(event) => setShowReferenceOverlay(event.target.checked)}
-                  />
-                  Standing guide overlay
-                </label>
-                <label className="reference-overlay-opacity">
-                  Overlay strength
-                  <input
-                    type="range"
-                    min="0.15"
-                    max="0.7"
-                    step="0.05"
-                    value={referenceOverlayOpacity}
-                    disabled={!canUseReferenceOverlay || !showReferenceOverlay}
-                    onChange={(event) => setReferenceOverlayOpacity(Number(event.target.value))}
-                  />
-                </label>
-              </div>
-            </SteplyCard>
-
-            <div className="analysis-controls analysis-controls--guided">
-              <SteplyButton
-                onClick={() => {
-                  if (!remoteCameraFrame?.src && onPreviewMissionStart) {
-                    onPreviewMissionStart();
-                    return;
-                  }
-                  poseAnalysis?.startAnalysis?.();
-                }}
-                disabled={isSetupImageMode || isMissionRunning || (!remoteCameraFrame?.src && !onPreviewMissionStart) || !displaySetupCheck.isReady}
-              >
-                {isSetupImageMode ? 'Live camera needed' : displaySetupCheck.isReady ? 'I’m Ready' : 'Adjust camera position'}
-              </SteplyButton>
-
-              <SteplyButton
-                variant="secondary"
-                onClick={() => {
-                  if (missionPreviewActive && onPreviewResult) {
-                    onPreviewResult();
-                    return;
-                  }
-                  poseAnalysis?.finishAnalysis?.();
-                }}
-                disabled={!isMissionRunning}
-              >
-                See Today’s Recommendation
-              </SteplyButton>
-
-              <SteplyButton variant="ghost" onClick={poseAnalysis?.resetAnalysis}>
-                Reset setup
-              </SteplyButton>
-
-              {SHOW_DEBUG_TOOLS ? (
-                <>
-                  <SteplyButton variant="ghost" onClick={poseAnalysis?.probeDebug}>
-                    Debug Probe
-                  </SteplyButton>
-
-                  <SteplyButton
-                    variant="secondary"
-                    onClick={poseAnalysis?.addManualRepetition}
-                    disabled={!poseAnalysis?.isRunning}
-                  >
-                    +1 Rep Adjust
-                  </SteplyButton>
-                </>
-              ) : null}
-            </div>
+          <div className="movement-guide-visual">
+            <img
+              className="movement-guide-image"
+              src={movementGuide.image}
+              alt={movementGuide.alt}
+            />
           </div>
-        </div>
-      </SteplyCard>
+        </SteplyCard>
 
-      <aside className="analysis-side analysis-side--guided">
         <SteplyCard className="feedback-stack feedback-stack--analysis guided-status-card">
           <div className="eyebrow">Live Status</div>
           <h3>Large, simple numbers</h3>
@@ -753,20 +552,123 @@ export function AnalysisPanel({
             <strong>{roundMetric(primaryValue, 0)}</strong>
           </div>
         </SteplyCard>
+      </aside>
 
+      <main className="analysis-main-zone analysis-main-zone--mission">
+        <SteplyCard className="mission-camera-card">
+          <div className="arena-stage arena-stage--camera arena-stage--guided">
+            {displayFrame?.src ? (
+              <div className="remote-camera-layer">
+                <img
+                  className="remote-camera-frame"
+                  src={displayFrame.src}
+                  alt={isSetupImageMode ? 'Uploaded setup preview' : 'Camera stream from the phone'}
+                  onLoad={() => setFrameLoadError('')}
+                  onError={() => setFrameLoadError('Frame received, but the browser could not decode the image.')}
+                />
+                {canUseReferenceOverlay && showReferenceOverlay ? (
+                  <img
+                    className="reference-pose-overlay"
+                    src={standingReferenceOverlay}
+                    alt="Standing posture reference overlay"
+                    style={{ opacity: referenceOverlayOpacity }}
+                  />
+                ) : null}
+                <PoseOverlay
+                  landmarks={poseAnalysis?.landmarks || []}
+                  rawLandmarks={SHOW_DEBUG_TOOLS ? poseAnalysis?.rawLandmarks || [] : []}
+                  showRaw={SHOW_DEBUG_TOOLS}
+                  frameSize={poseAnalysis?.frameSize}
+                  fit="cover"
+                />
+              </div>
+            ) : (
+              <>
+                <div className="stage-grid" aria-hidden="true" />
+                <div className="coach-figure coach-figure--stage" aria-label="Movement guide figure">
+                  <span className="coach-head" />
+                  <span className="coach-body" />
+                  <span className="coach-arm coach-arm--left" />
+                  <span className="coach-arm coach-arm--right" />
+                  <span className="coach-leg coach-leg--left" />
+                  <span className="coach-leg coach-leg--right" />
+                  <span className="chair-seat" />
+                  <span className="chair-leg chair-leg--left" />
+                  <span className="chair-leg chair-leg--right" />
+                </div>
+                <div className="stage-pulse" />
+              </>
+            )}
+
+            <div className="guided-camera-focus" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+              <span />
+            </div>
+
+            {selectedTest === 'four_stage_balance' ? (
+              <div className={isMissionRunning ? 'foot-placement-guide foot-placement-guide--active' : 'foot-placement-guide'} aria-hidden="true">
+                <span className="foot-placement-guide__foot foot-placement-guide__foot--back" />
+                <span className="foot-placement-guide__foot foot-placement-guide__foot--front" />
+                <strong>Tandem stance</strong>
+              </div>
+            ) : null}
+
+            <div className="guided-camera-message">
+              <span className="guided-camera-icon">▶</span>
+              <div>
+                <strong>{setupMessage}</strong>
+                <p>
+                  {isMissionRunning
+                    ? 'Hold this position gently and keep your eyes forward.'
+                    : isSetupImageMode
+                      ? 'This image is only for checking setup.'
+                    : displaySetupCheck.isReady
+                      ? 'The mission can begin when you press Start Mission.'
+                      : movementGuide.setup.body}
+                </p>
+              </div>
+            </div>
+
+            <div className="remote-camera-badge">
+              <span
+                className={
+                  displayFrame?.src && !frameLoadError
+                    ? 'remote-camera-dot remote-camera-dot--live'
+                    : 'remote-camera-dot'
+                }
+              />
+              {cameraStatusText}
+            </div>
+
+            {SHOW_DEBUG_TOOLS ? (
+              <div className="pose-debug-overlay">
+                <strong>Pose Debug</strong>
+                <span>Quality {percent(trackingQualityScore)}</span>
+                <span>Full body {displaySetupCheck.fullBodyVisible ? 'yes' : 'no'}</span>
+                <span>Feet {displaySetupCheck.feetVisible ? 'yes' : 'no'}</span>
+                <span>Mode {poseAnalysis?.smoothingStats?.mode || '-'}</span>
+              </div>
+            ) : null}
+          </div>
+        </SteplyCard>
+      </main>
+
+      <aside className="analysis-side analysis-side--guided">
         <TimerCircle
-          value={elapsedSeconds}
-          max={durationSeconds}
-          label="sec"
+          value={timerDisplayValue}
+          max={timerDisplayMax}
+          label={timerDisplayLabel}
           score={roundMetric(primaryValue, 0)}
         />
 
-        <MetricCard
-          value={roundMetric(primaryValue, 0)}
-          label={primaryLabel}
-          detail={`${elapsedSeconds} / ${durationSeconds}s`}
-          accent
-        />
+        <SteplyCard className="timer-guidance-card">
+          <div>
+            <strong>{timerGuidanceTitle}</strong>
+            <p>{timerGuidanceBody}</p>
+          </div>
+        </SteplyCard>
 
         {result ? (
           <SteplyCard className="feedback-stack feedback-stack--result-mini">
@@ -826,6 +728,10 @@ export function AnalysisPanel({
               <li>Camera still: {displaySetupCheck.cameraStill ? 'yes' : 'no'}</li>
               <li>Worker: {poseAnalysis?.workerStatus || 'booting'}</li>
               <li>Frame size: {frameKb} KB</li>
+              <li>Pose latency: {milliseconds(frameTiming?.latencyMs)} ({frameTiming?.source || '-'})</li>
+              <li>Pose timing: {frameTimingText}</li>
+              <li>Lighting calibration: {brightnessCalibrationText}</li>
+              <li>Frame brightness: {brightnessFrameText}</li>
               <li>Frame #{remoteCameraFrame?.sequence || '-'} · {receivedTime}</li>
               <li>Smoothed/raw visible: {poseAnalysis?.smoothingStats?.smoothedVisibleCount ?? '-'} / {poseAnalysis?.smoothingStats?.rawVisibleCount ?? '-'}</li>
               <li>Interpolated: {poseAnalysis?.smoothingStats?.interpolatedCount ?? '-'} · outliers: {poseAnalysis?.smoothingStats?.rejectedOutlierCount ?? '-'}</li>

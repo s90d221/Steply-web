@@ -18,6 +18,8 @@ for (const file of files) {
   execFileSync('node', ['--check', file], { stdio: 'inherit' });
 }
 
+execFileSync('node', ['scripts/check-chair-stand-count.mjs'], { stdio: 'inherit' });
+
 function walk(dir) {
   for (const item of fs.readdirSync(dir)) {
     const p = path.join(dir, item);

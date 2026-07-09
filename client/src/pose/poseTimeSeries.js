@@ -73,7 +73,7 @@ export class PoseLandmarkSeries {
     this.frames = [];
   }
 
-  push(frameInput = {}) {
+  push(frameInput = {}, { includeSeriesFrames = true } = {}) {
     const frame = createPoseLandmarkFrame(frameInput);
     this.frames.push(frame);
     this.prune(frame.timestampMs);
@@ -94,7 +94,7 @@ export class PoseLandmarkSeries {
     return {
       frame: annotatedFrame,
       metrics,
-      series: this.snapshot(),
+      series: this.snapshot({ includeFrames: includeSeriesFrames }),
     };
   }
 

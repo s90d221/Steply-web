@@ -30,6 +30,20 @@ export const REQUIRED_TRACKING_LANDMARKS = [
   PoseLandmarks.RightFootIndex,
 ];
 
+const LEFT_SIDE_TRACKING_LANDMARKS = [
+  PoseLandmarks.LeftShoulder,
+  PoseLandmarks.LeftHip,
+  PoseLandmarks.LeftKnee,
+  PoseLandmarks.LeftAnkle,
+];
+
+const RIGHT_SIDE_TRACKING_LANDMARKS = [
+  PoseLandmarks.RightShoulder,
+  PoseLandmarks.RightHip,
+  PoseLandmarks.RightKnee,
+  PoseLandmarks.RightAnkle,
+];
+
 const CORE_VISIBILITY_LANDMARKS = [
   PoseLandmarks.LeftShoulder,
   PoseLandmarks.RightShoulder,
@@ -57,6 +71,10 @@ const MAX_BODY_HEIGHT = 0.9;
 const MAX_CENTER_JUMP_RATIO = 0.11;
 const MAX_SIZE_CHANGE_RATIO = 0.22;
 
+function isChairStandTest(testType) {
+  return testType === 'chair_stand';
+}
+
 function finite(value) {
   return typeof value === 'number' && Number.isFinite(value);
 }
@@ -82,6 +100,11 @@ function pointInsideFrame(point, margin = FRAME_MARGIN) {
   );
 }
 
+function visibleInFrame(points, name, minVisibility = MIN_VISIBILITY) {
+  const point = points.get(name);
+  return visibilityOf(point, 0) >= minVisibility && pointInsideFrame(point);
+}
+
 function visibilityScore(points, landmarkNames = CORE_VISIBILITY_LANDMARKS) {
   if (!landmarkNames.length) return 0;
   const scores = landmarkNames.map((name) => {
@@ -100,18 +123,37 @@ function inFrameScore(points, landmarkNames = REQUIRED_TRACKING_LANDMARKS) {
   return passed / landmarkNames.length;
 }
 
-function feetVisible(points) {
-  return FOOT_LANDMARKS.every((name) => {
-    const point = points.get(name);
-    return visibilityOf(point, 0) >= MIN_VISIBILITY && pointInsideFrame(point);
-  });
+function sideFootVisible(points, side, minVisibility = MIN_VISIBILITY) {
+  const ankle = side === 'left' ? PoseLandmarks.LeftAnkle : PoseLandmarks.RightAnkle;
+  const heel = side === 'left' ? PoseLandmarks.LeftHeel : PoseLandmarks.RightHeel;
+  const footIndex = side === 'left' ? PoseLandmarks.LeftFootIndex : PoseLandmarks.RightFootIndex;
+  return visibleInFrame(points, ankle, minVisibility)
+    && (visibleInFrame(points, heel, minVisibility) || visibleInFrame(points, footIndex, minVisibility));
 }
 
-function requiredVisible(points) {
-  return REQUIRED_TRACKING_LANDMARKS.every((name) => {
-    const point = points.get(name);
-    return visibilityOf(point, 0) >= MIN_VISIBILITY && pointInsideFrame(point);
-  });
+function feetVisible(points, testType = 'chair_stand') {
+  const leftFootVisible = sideFootVisible(points, 'left');
+  const rightFootVisible = sideFootVisible(points, 'right');
+  return isChairStandTest(testType)
+    ? leftFootVisible || rightFootVisible
+    : leftFootVisible && rightFootVisible;
+}
+
+function sideBodyVisible(points, landmarkNames, minVisibility = MIN_VISIBILITY) {
+  return landmarkNames.every((name) => visibleInFrame(points, name, minVisibility));
+}
+
+function chairStandBodyVisible(points) {
+  return sideBodyVisible(points, LEFT_SIDE_TRACKING_LANDMARKS)
+    || sideBodyVisible(points, RIGHT_SIDE_TRACKING_LANDMARKS);
+}
+
+function requiredVisible(points, testType = 'chair_stand') {
+  if (isChairStandTest(testType)) {
+    return chairStandBodyVisible(points) && feetVisible(points, testType);
+  }
+  return CORE_VISIBILITY_LANDMARKS.every((name) => visibleInFrame(points, name))
+    && feetVisible(points, testType);
 }
 
 function bodyDistanceScore(bodyBox) {
@@ -156,6 +198,29 @@ function fullBodyInFrameScore(points, bodyBox) {
   return Math.min(inFrameScore(points), bodyDistanceScore(bodyBox));
 }
 
+function trackingVisibilityScore(points, testType) {
+  if (isChairStandTest(testType)) {
+    return Math.max(
+      visibilityScore(points, LEFT_SIDE_TRACKING_LANDMARKS),
+      visibilityScore(points, RIGHT_SIDE_TRACKING_LANDMARKS),
+    );
+  }
+  return visibilityScore(points);
+}
+
+function trackingInFrameScore(points, bodyBox, testType) {
+  if (isChairStandTest(testType)) {
+    return Math.min(
+      Math.max(
+        inFrameScore(points, LEFT_SIDE_TRACKING_LANDMARKS),
+        inFrameScore(points, RIGHT_SIDE_TRACKING_LANDMARKS),
+      ),
+      bodyDistanceScore(bodyBox),
+    );
+  }
+  return fullBodyInFrameScore(points, bodyBox);
+}
+
 function singlePersonScore(poseCount) {
   if (!Number.isFinite(poseCount)) return 1;
   if (poseCount === 1) return 1;
@@ -178,11 +243,12 @@ export function calculateTrackingQuality({
   previousSample = null,
   poseCount = null,
   brightness = null,
+  testType = 'chair_stand',
 } = {}) {
   const points = pointsFor(landmarks);
   const bodyBox = calculateKinematicBodyBox(landmarks, { minVisibility: 0.35 });
-  const requiredLandmarkVisibilityScore = visibilityScore(points);
-  const fullBodyScore = fullBodyInFrameScore(points, bodyBox);
+  const requiredLandmarkVisibilityScore = trackingVisibilityScore(points, testType);
+  const fullBodyScore = trackingInFrameScore(points, bodyBox, testType);
   const stabilityScore = landmarkStabilityScore(landmarks, previousSample);
   const personScore = singlePersonScore(poseCount);
   const cameraScore = cameraStabilityScore(bodyBox, previousSample);
@@ -228,10 +294,10 @@ export function evaluateCameraReadiness({
     }
     : calculateBodyCenter(landmarks, { minVisibility: 0.35 });
   const hasPose = landmarks.some((point) => visibilityOf(point, 0) >= 0.35);
-  const trackingQuality = calculateTrackingQuality({ landmarks, previousSample, poseCount, brightness });
-  const fullBodyVisible = requiredVisible(points);
+  const trackingQuality = calculateTrackingQuality({ landmarks, previousSample, poseCount, brightness, testType });
+  const fullBodyVisible = requiredVisible(points, testType);
   const properDistance = bodyDistanceScore(bodyBox) >= 0.95;
-  const hasFeet = feetVisible(points);
+  const hasFeet = feetVisible(points, testType);
   const singlePersonDetected = !Number.isFinite(poseCount) ? true : poseCount === 1;
   const trackingStable = strictStability
     ? trackingQuality.landmarkStabilityScore >= 0.62

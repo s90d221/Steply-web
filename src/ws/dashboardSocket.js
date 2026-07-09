@@ -5,6 +5,8 @@ const { getSession, hasSession, getOrCreateSocketSet, removeSocket, broadcast } 
 const { publicSession } = require('../services/sessionPresenter');
 const { cleanupSessionPersonalData } = require('../services/sessionService');
 
+const MAX_DASHBOARD_BUFFERED_BYTES = 250_000;
+
 function normalizeFrameDataUrl(frame, mimeType = 'image/jpeg') {
   if (typeof frame !== 'string') return '';
   const value = frame.trim();
@@ -17,6 +19,16 @@ function canMobileStream(session) {
   if (!session) return false;
   if (session.expiresAtEpochMs && session.expiresAtEpochMs <= Date.now()) return false;
   return Boolean(session.connectedAt && session.pairingTokenConsumedAt);
+}
+
+function sendToRole(sessionId, role, payload) {
+  const sockets = getOrCreateSocketSet(sessionId);
+  const serialized = typeof payload === 'string' ? payload : JSON.stringify(payload);
+  for (const peer of sockets) {
+    if (peer.readyState !== peer.OPEN) continue;
+    if (peer.role !== role) continue;
+    peer.send(serialized);
+  }
 }
 
 function attachDashboardWebSocket(server) {
@@ -64,6 +76,8 @@ function attachDashboardWebSocket(server) {
           return;
         }
         const buffer = Buffer.isBuffer(raw) ? raw : Buffer.from(raw);
+        const mobileFrameMeta = socket.pendingMobileFrameMeta || {};
+        socket.pendingMobileFrameMeta = null;
         const receivedAt = Date.now();
         socket.frameSequence = (socket.frameSequence || 0) + 1;
         const metadata = {
@@ -72,6 +86,9 @@ function attachDashboardWebSocket(server) {
           byteLength: buffer.length,
           receivedAt,
           sequence: socket.frameSequence,
+          mobileSequence: mobileFrameMeta.mobileSequence || null,
+          mobileSentAt: mobileFrameMeta.sentAtEpochMs || null,
+          capturedAtUptimeMs: mobileFrameMeta.capturedAtUptimeMs || null,
         };
 
         // Send metadata as JSON, then the JPEG as a binary WebSocket message.
@@ -82,6 +99,7 @@ function attachDashboardWebSocket(server) {
         for (const peer of sockets) {
           if (peer.readyState !== peer.OPEN) continue;
           if (!DASHBOARD_ROLES.has(peer.role)) continue;
+          if (peer.bufferedAmount > MAX_DASHBOARD_BUFFERED_BYTES) continue;
           peer.send(metadataPayload);
           peer.send(buffer, { binary: true });
         }
@@ -97,6 +115,29 @@ function attachDashboardWebSocket(server) {
 
       if (msg.type === 'ping') {
         socket.send(JSON.stringify({ type: 'pong', at: Date.now() }));
+      }
+
+      if (msg.type === 'camera-frame-meta' && socket.role === 'mobile') {
+        socket.pendingMobileFrameMeta = {
+          mobileSequence: Number.isFinite(Number(msg.mobileSequence)) ? Number(msg.mobileSequence) : null,
+          capturedAtUptimeMs: Number.isFinite(Number(msg.capturedAtUptimeMs)) ? Number(msg.capturedAtUptimeMs) : null,
+          sentAtEpochMs: Number.isFinite(Number(msg.sentAtEpochMs)) ? Number(msg.sentAtEpochMs) : null,
+          byteLength: Number.isFinite(Number(msg.byteLength)) ? Number(msg.byteLength) : null,
+        };
+        return;
+      }
+
+      if (msg.type === 'remote-camera-frame-ack' && DASHBOARD_ROLES.has(socket.role)) {
+        sendToRole(sessionId, 'mobile', {
+          type: 'remote-camera-frame-ack',
+          sequence: msg.sequence || null,
+          mobileSequence: msg.mobileSequence || null,
+          source: msg.source || 'pose-frame',
+          receivedAt: msg.receivedAt || null,
+          analyzedAt: msg.analyzedAt || Date.now(),
+          at: Date.now(),
+        });
+        return;
       }
 
       if (msg.type === 'hello' && socket.role === 'mobile') {

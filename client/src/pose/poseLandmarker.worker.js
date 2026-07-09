@@ -18,6 +18,17 @@ const MODEL_PATHS_BY_QUALITY = {
 };
 const DEFAULT_WASM_PATH = '/wasm';
 const MIN_FRAME_INTERVAL_MS = 66;
+const MAX_INPUT_FRAME_AGE_MS = 500;
+const BRIGHTNESS_SAMPLE_INTERVAL_MS = 333;
+const BRIGHTNESS_CALIBRATION_TARGET = 0.5;
+const BRIGHTNESS_CALIBRATION_MIN_SAMPLES = 4;
+const BRIGHTNESS_CALIBRATION_SAMPLE_LIMIT = 24;
+const BRIGHTNESS_CALIBRATION_MAX_CORRECTION = 0.18;
+const BRIGHTNESS_CORRECTION_HARD_LOW = 0.12;
+const BRIGHTNESS_CORRECTION_HARD_HIGH = 0.97;
+const PREVIEW_QUALITY_INTERVAL_MS = 250;
+const ANALYSIS_QUALITY_INTERVAL_MS = 200;
+const CHAIR_STAND_MOVEMENT_INTERVAL_MS = MIN_FRAME_INTERVAL_MS;
 const MIN_POSE_CONFIDENCE = 0.65;
 const PROCESSING_TELEMETRY_SAMPLE_LIMIT = 60;
 const PROCESSING_TELEMETRY_REPORT_INTERVAL = 20;
@@ -41,6 +52,19 @@ let processedFrameWallTimes = [];
 let inferenceDurationsMs = [];
 let latestQualitySample = null;
 let sessionQuality = null;
+let latestBrightnessSample = null;
+let latestBrightnessSampleAt = 0;
+let brightnessCalibrationSamples = [];
+let brightnessCalibration = null;
+let latestPreviewQualityAt = 0;
+let latestAnalysisQualityAt = 0;
+let latestMovementAnalysisAt = 0;
+let latestAnalysisQualityPayload = null;
+let brightnessCanvas = null;
+let brightnessContext = null;
+let pendingPreviewFrame = null;
+let pendingAnalysisFrame = null;
+let framePumpScheduled = false;
 
 function normalizeBasePath(path) {
   return String(path || '').replace(/\/$/, '');
@@ -263,8 +287,150 @@ function resetProcessingTelemetry() {
   inferenceDurationsMs = [];
 }
 
+function resetBrightnessSampling() {
+  latestBrightnessSample = null;
+  latestBrightnessSampleAt = 0;
+}
+
+function resetPipelineCadence() {
+  latestPreviewQualityAt = 0;
+  latestAnalysisQualityAt = 0;
+  latestMovementAnalysisAt = 0;
+}
+
+function resetCachedAnalysisQuality() {
+  latestAnalysisQualityPayload = null;
+}
+
+function shouldRunPreviewQualityPipeline(now = Date.now()) {
+  if (!latestPreviewQualityAt || now - latestPreviewQualityAt >= PREVIEW_QUALITY_INTERVAL_MS) {
+    latestPreviewQualityAt = now;
+    return true;
+  }
+  return false;
+}
+
+function shouldRunAnalysisQualityPipeline(now = Date.now()) {
+  if (frameSequence === 0 || !latestAnalysisQualityAt || now - latestAnalysisQualityAt >= ANALYSIS_QUALITY_INTERVAL_MS) {
+    latestAnalysisQualityAt = now;
+    return true;
+  }
+  return false;
+}
+
+function movementAnalysisIntervalMs() {
+  return selectedTest === 'chair_stand'
+    ? CHAIR_STAND_MOVEMENT_INTERVAL_MS
+    : ANALYSIS_QUALITY_INTERVAL_MS;
+}
+
+function usesFastRawAnalysis() {
+  return selectedTest === 'chair_stand';
+}
+
+function shouldRunMovementAnalysisPipeline(now = Date.now()) {
+  if (frameSequence === 0 || !latestMovementAnalysisAt || now - latestMovementAnalysisAt >= movementAnalysisIntervalMs()) {
+    latestMovementAnalysisAt = now;
+    return true;
+  }
+  return false;
+}
+
 function average(values = []) {
   return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+}
+
+function finiteNumber(value) {
+  return Number.isFinite(Number(value));
+}
+
+function clampValue(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function clamp01(value) {
+  return clampValue(value, 0, 1);
+}
+
+function lightingLevelForBrightness(brightness) {
+  if (!finiteNumber(brightness)) return 'unknown';
+  if (brightness < 0.16) return 'too_dark';
+  if (brightness < 0.28) return 'dim';
+  if (brightness > 0.92) return 'too_bright';
+  if (brightness > 0.82) return 'bright';
+  return 'ok';
+}
+
+function buildBrightnessCalibration(updatedAt = Date.now()) {
+  const averageBrightness = average(brightnessCalibrationSamples);
+  if (!finiteNumber(averageBrightness)) return null;
+  const sampleCount = brightnessCalibrationSamples.length;
+  const correctionReady = sampleCount >= BRIGHTNESS_CALIBRATION_MIN_SAMPLES;
+  const correction = correctionReady
+    ? clampValue(
+      BRIGHTNESS_CALIBRATION_TARGET - averageBrightness,
+      -BRIGHTNESS_CALIBRATION_MAX_CORRECTION,
+      BRIGHTNESS_CALIBRATION_MAX_CORRECTION,
+    )
+    : 0;
+
+  return {
+    sampleCount,
+    correctionReady,
+    averageBrightness,
+    targetBrightness: BRIGHTNESS_CALIBRATION_TARGET,
+    correction,
+    calibratedAverageBrightness: clamp01(averageBrightness + correction),
+    lightingLevel: lightingLevelForBrightness(averageBrightness),
+    lightingOk: averageBrightness >= 0.16 && averageBrightness <= 0.92,
+    updatedAt,
+  };
+}
+
+function recordBrightnessCalibrationSample(brightness, sampledAt = Date.now()) {
+  if (!finiteNumber(brightness)) return brightnessCalibration;
+  brightnessCalibrationSamples.push(brightness);
+  while (brightnessCalibrationSamples.length > BRIGHTNESS_CALIBRATION_SAMPLE_LIMIT) {
+    brightnessCalibrationSamples.shift();
+  }
+  brightnessCalibration = buildBrightnessCalibration(sampledAt);
+  return brightnessCalibration;
+}
+
+function resetBrightnessCalibration() {
+  brightnessCalibrationSamples = [];
+  brightnessCalibration = null;
+}
+
+function brightnessQualityContext(sample, { updateCalibration = false } = {}) {
+  const rawBrightness = finiteNumber(sample?.value) ? Number(sample.value) : null;
+  const sampledAt = sample?.sampledAt || Date.now();
+  const calibration = updateCalibration && sample?.fresh
+    ? recordBrightnessCalibrationSample(rawBrightness, sampledAt)
+    : brightnessCalibration;
+  const canApplyCorrection = (
+    finiteNumber(rawBrightness)
+    && calibration?.correctionReady
+    && rawBrightness >= BRIGHTNESS_CORRECTION_HARD_LOW
+    && rawBrightness <= BRIGHTNESS_CORRECTION_HARD_HIGH
+  );
+  const appliedCorrection = canApplyCorrection ? calibration.correction : 0;
+  const correctedBrightness = finiteNumber(rawBrightness)
+    ? clamp01(rawBrightness + appliedCorrection)
+    : rawBrightness;
+
+  return {
+    brightnessForQuality: correctedBrightness,
+    brightness: {
+      raw: rawBrightness,
+      corrected: correctedBrightness,
+      correction: appliedCorrection,
+      correctionApplied: Boolean(canApplyCorrection && Math.abs(appliedCorrection) > 0.001),
+      sampledAt,
+      calibrationSampleCount: calibration?.sampleCount || 0,
+    },
+    brightnessCalibration: calibration,
+  };
 }
 
 function recordProcessingTelemetry({ analyzedAt, inferenceDurationMs }) {
@@ -301,6 +467,42 @@ function setSelectedTest(nextSelectedTest) {
   selectedTest = next;
   poseSmoother = createPoseSmootherForTest(selectedTest);
   latestQualitySample = null;
+  resetCachedAnalysisQuality();
+  resetBrightnessSampling();
+  resetBrightnessCalibration();
+  resetPipelineCadence();
+}
+
+function inputReceivedAt(message, fallback = Date.now()) {
+  const receivedAt = Number(message?.receivedAt);
+  return Number.isFinite(receivedAt) ? receivedAt : fallback;
+}
+
+function frameAgeMs(receivedAt, now = Date.now()) {
+  const timestamp = Number(receivedAt);
+  if (!Number.isFinite(timestamp)) return 0;
+  return Math.max(0, now - timestamp);
+}
+
+function isStaleFrameMessage(message, now = Date.now()) {
+  return frameAgeMs(inputReceivedAt(message, now), now) > MAX_INPUT_FRAME_AGE_MS;
+}
+
+function isStaleDetectedFrame(detected, now = Date.now()) {
+  return frameAgeMs(detected?.inputReceivedAt, now) > MAX_INPUT_FRAME_AGE_MS;
+}
+
+function postFrameSkipped({ message, detected, source, reason, now = Date.now() }) {
+  const receivedAt = detected?.inputReceivedAt ?? inputReceivedAt(message, now);
+  postMessage({
+    type: 'frame-skipped',
+    source,
+    reason,
+    receivedAt,
+    ageMs: frameAgeMs(receivedAt, now),
+    maxFrameAgeMs: MAX_INPUT_FRAME_AGE_MS,
+    at: now,
+  });
 }
 
 function resetSessionQuality() {
@@ -369,6 +571,14 @@ function shouldBlockFrame(readiness) {
   );
 }
 
+function shouldBlockMovementFrame(readiness) {
+  return (
+    !readiness?.fullBodyVisible
+    || !readiness?.feetVisible
+    || !readiness?.singlePersonDetected
+  );
+}
+
 function shouldInvalidateSession(summary) {
   return (
     summary.acceptedFrameCount < SESSION_MIN_ACCEPTED_FRAMES
@@ -422,21 +632,65 @@ function stateForCameraIssue(timestampMs, readiness) {
   };
 }
 
-function buildPoseQualityPayload({ detected, timestampMs, poseCount, brightness }) {
-  const smoothed = poseSmoother.smooth(detected.landmarks, { timestampMs });
+function buildCachedAnalysisQualityPayload({ smoothed, detected }) {
+  const cached = latestAnalysisQualityPayload || {};
+  return {
+    ...smoothed,
+    cameraReadiness: cached.cameraReadiness || null,
+    trackingQuality: cached.trackingQuality || null,
+    trackingQualityScore: cached.trackingQualityScore ?? detected.confidence ?? 0,
+    brightness: cached.brightness || null,
+    brightnessCalibration: cached.brightnessCalibration || brightnessCalibration,
+  };
+}
+
+function cacheAnalysisQualityPayload(qualityPayload, brightnessContext) {
+  latestAnalysisQualityPayload = {
+    cameraReadiness: qualityPayload.cameraReadiness,
+    trackingQuality: qualityPayload.trackingQuality,
+    trackingQualityScore: qualityPayload.trackingQualityScore,
+    brightness: brightnessContext?.brightness || null,
+    brightnessCalibration: brightnessContext?.brightnessCalibration || null,
+    cachedAt: Date.now(),
+  };
+}
+
+function buildPoseQualityPayload({
+  detected,
+  timestampMs,
+  poseCount,
+  brightness,
+  brightnessStats = null,
+  brightnessCalibration = null,
+  smoothed = null,
+}) {
+  const smoothedPose = smoothed || poseSmoother.smooth(detected.landmarks, { timestampMs });
   const readiness = evaluateCameraReadiness({
-    landmarks: smoothed.landmarks,
+    landmarks: smoothedPose.landmarks,
     testType: selectedTest,
     previousSample: latestQualitySample,
     poseCount,
     brightness,
     strictStability: true,
   });
+  const trackingQuality = {
+    ...readiness.trackingQuality,
+    rawBrightness: brightnessStats?.raw ?? null,
+    correctedBrightness: brightnessStats?.corrected ?? null,
+    brightnessCorrection: brightnessStats?.correction ?? 0,
+    brightnessCalibration,
+  };
+  const cameraReadiness = {
+    ...readiness,
+    trackingQuality,
+    brightness: brightnessStats,
+    brightnessCalibration,
+  };
   latestQualitySample = readiness.sample;
   return {
-    ...smoothed,
-    cameraReadiness: readiness,
-    trackingQuality: readiness.trackingQuality,
+    ...smoothedPose,
+    cameraReadiness,
+    trackingQuality,
     trackingQualityScore: readiness.trackingQualityScore,
   };
 }
@@ -446,11 +700,13 @@ async function estimateFrameBrightness(bitmap) {
   try {
     const width = 24;
     const height = 24;
-    const canvas = new OffscreenCanvas(width, height);
-    const context = canvas.getContext('2d', { willReadFrequently: true });
-    if (!context) return null;
-    context.drawImage(bitmap, 0, 0, width, height);
-    const { data } = context.getImageData(0, 0, width, height);
+    if (!brightnessCanvas) {
+      brightnessCanvas = new OffscreenCanvas(width, height);
+      brightnessContext = brightnessCanvas.getContext('2d', { willReadFrequently: true });
+    }
+    if (!brightnessContext) return null;
+    brightnessContext.drawImage(bitmap, 0, 0, width, height);
+    const { data } = brightnessContext.getImageData(0, 0, width, height);
     let luma = 0;
     for (let index = 0; index < data.length; index += 4) {
       luma += (0.2126 * data[index] + 0.7152 * data[index + 1] + 0.0722 * data[index + 2]) / 255;
@@ -459,6 +715,27 @@ async function estimateFrameBrightness(bitmap) {
   } catch (_) {
     return null;
   }
+}
+
+async function sampledFrameBrightness(bitmap, now = Date.now()) {
+  if (
+    latestBrightnessSample !== null
+    && now - latestBrightnessSampleAt < BRIGHTNESS_SAMPLE_INTERVAL_MS
+  ) {
+    return {
+      value: latestBrightnessSample,
+      sampledAt: latestBrightnessSampleAt,
+      fresh: false,
+    };
+  }
+  const brightness = await estimateFrameBrightness(bitmap);
+  latestBrightnessSample = brightness;
+  latestBrightnessSampleAt = now;
+  return {
+    value: brightness,
+    sampledAt: now,
+    fresh: true,
+  };
 }
 
 async function imageBitmapFromFrame(frame) {
@@ -492,9 +769,9 @@ async function imageBitmapFromFrame(frame) {
 
 async function detectPoseFromFrame(message) {
   await initLandmarker(message.config || {});
+  const receivedAt = inputReceivedAt(message);
   const bitmap = await imageBitmapFromFrame(message.frame);
-  const brightness = await estimateFrameBrightness(bitmap);
-  const timestampMs = nextMediaPipeTimestampMs(message.receivedAt || Date.now());
+  const timestampMs = nextMediaPipeTimestampMs(receivedAt);
   const inferenceStartedAt = Date.now();
   const result = landmarker.detectForVideo(bitmap, timestampMs);
   const inferenceEndedAt = Date.now();
@@ -510,17 +787,44 @@ async function detectPoseFromFrame(message) {
   return {
     bitmap,
     timestampMs,
+    inputReceivedAt: receivedAt,
+    cameraFrameSequence: message.cameraFrameSequence ?? message.sequence ?? null,
+    mobileSequence: message.mobileSequence ?? null,
     landmarks,
     poseCount: result.landmarks?.length || 0,
-    brightness,
     confidence,
     inferenceDurationMs: inferenceEndedAt - inferenceStartedAt,
   };
 }
 
+function postPoseFrame({ source, detected, bitmap, sequence = null, analyzedAt = Date.now() }) {
+  postMessage({
+    type: 'pose-frame',
+    source,
+    sequence,
+    cameraFrameSequence: detected.cameraFrameSequence,
+    mobileSequence: detected.mobileSequence,
+    landmarks: detected.landmarks,
+    rawLandmarks: detected.landmarks,
+    confidence: detected.confidence,
+    frameSize: { width: bitmap.width, height: bitmap.height },
+    receivedAt: detected.inputReceivedAt,
+    analyzedAt,
+  });
+}
+
 async function handlePreviewFrame(message) {
   const now = Date.now();
   if (session?.active) return;
+  if (isStaleFrameMessage(message, now)) {
+    postFrameSkipped({
+      message,
+      source: 'preview-frame',
+      reason: 'stale-before-inference',
+      now,
+    });
+    return;
+  }
   if (isAnalyzingFrame) return;
   if (now - latestAnalyzeAt < MIN_FRAME_INTERVAL_MS) return;
   latestAnalyzeAt = now;
@@ -531,13 +835,42 @@ async function handlePreviewFrame(message) {
   try {
     const detected = await detectPoseFromFrame(message);
     bitmap = detected.bitmap;
+    if (isStaleDetectedFrame(detected)) {
+      postFrameSkipped({
+        message,
+        detected,
+        source: 'preview-frame',
+        reason: 'stale-after-inference',
+      });
+      return;
+    }
+    postPoseFrame({
+      source: 'preview-frame',
+      detected,
+      bitmap,
+    });
+    if (!shouldRunPreviewQualityPipeline()) return;
+    const brightnessSample = await sampledFrameBrightness(bitmap);
+    const brightnessContext = brightnessQualityContext(brightnessSample, { updateCalibration: true });
     const qualityPayload = buildPoseQualityPayload({
       detected,
       timestampMs: detected.timestampMs,
       poseCount: detected.poseCount,
-      brightness: detected.brightness,
+      brightness: brightnessContext.brightnessForQuality,
+      brightnessStats: brightnessContext.brightness,
+      brightnessCalibration: brightnessContext.brightnessCalibration,
     });
     const analyzedAt = Date.now();
+    if (isStaleDetectedFrame(detected, analyzedAt)) {
+      postFrameSkipped({
+        message,
+        detected,
+        source: 'preview-frame',
+        reason: 'stale-before-quality-post',
+        now: analyzedAt,
+      });
+      return;
+    }
     postMessage({
       type: 'preview-frame',
       landmarks: qualityPayload.landmarks,
@@ -546,9 +879,13 @@ async function handlePreviewFrame(message) {
       trackingQualityScore: qualityPayload.trackingQualityScore,
       trackingQuality: qualityPayload.trackingQuality,
       cameraReadiness: qualityPayload.cameraReadiness,
+      brightness: brightnessContext.brightness,
+      brightnessCalibration: brightnessContext.brightnessCalibration,
       smoothing: qualityPayload.smoothing,
       frameSize: { width: bitmap.width, height: bitmap.height },
-      receivedAt: detected.timestampMs,
+      receivedAt: detected.inputReceivedAt,
+      cameraFrameSequence: detected.cameraFrameSequence,
+      mobileSequence: detected.mobileSequence,
       analyzedAt,
     });
   } catch (error) {
@@ -569,6 +906,7 @@ async function handlePreviewFrame(message) {
   } finally {
     if (bitmap) bitmap.close?.();
     isAnalyzingFrame = false;
+    scheduleFramePump();
   }
 }
 
@@ -576,6 +914,15 @@ async function handleFrame(message) {
   const now = Date.now();
   latestFrameAt = now;
   if (!session?.active) return;
+  if (isStaleFrameMessage(message, now)) {
+    postFrameSkipped({
+      message,
+      source: 'analysis-frame',
+      reason: 'stale-before-inference',
+      now,
+    });
+    return;
+  }
   if (isAnalyzingFrame) return;
   if (now - latestAnalyzeAt < MIN_FRAME_INTERVAL_MS) return;
   latestAnalyzeAt = now;
@@ -586,16 +933,130 @@ async function handleFrame(message) {
     const detected = await detectPoseFromFrame(message);
     bitmap = detected.bitmap;
     const timestampMs = detected.timestampMs;
-    const confidence = detected.confidence;
-    const qualityPayload = buildPoseQualityPayload({
-      detected,
-      timestampMs,
-      poseCount: detected.poseCount,
-      brightness: detected.brightness,
-    });
-    const blockedFrame = shouldBlockFrame(qualityPayload.cameraReadiness);
-    recordSessionQuality(qualityPayload.cameraReadiness, !blockedFrame);
     const nextSequence = frameSequence + 1;
+    if (isStaleDetectedFrame(detected)) {
+      postFrameSkipped({
+        message,
+        detected,
+        source: 'analysis-frame',
+        reason: 'stale-after-inference',
+      });
+      return;
+    }
+    postPoseFrame({
+      source: 'analysis-frame',
+      detected,
+      bitmap,
+      sequence: nextSequence,
+    });
+    if (!shouldRunMovementAnalysisPipeline()) return;
+
+    if (usesFastRawAnalysis()) {
+      const trackingQuality = {
+        trackingQualityScore: detected.confidence,
+        level: 'raw',
+        fastPath: true,
+      };
+      const poseFrame = {
+        timestampMs,
+        landmarks: detected.landmarks,
+        rawLandmarks: detected.landmarks,
+        confidence: detected.confidence,
+        metrics: null,
+        landmarkSeries: null,
+        trackingQuality,
+        trackingQualityScore: detected.confidence,
+        cameraReadiness: null,
+      };
+      let state = analyzer.addFrame(poseFrame);
+      state = {
+        ...state,
+        trackingQualityScore: detected.confidence,
+        trackingQuality,
+        cameraReadiness: null,
+      };
+      recordSessionQuality({
+        trackingQualityScore: detected.confidence,
+        trackingQuality,
+      }, true);
+
+      frameSequence = nextSequence;
+      const analyzedAt = Date.now();
+      if (isStaleDetectedFrame(detected, analyzedAt)) {
+        postFrameSkipped({
+          message,
+          detected,
+          source: 'analysis-frame',
+          reason: 'stale-before-analysis-post',
+          now: analyzedAt,
+        });
+        return;
+      }
+      const processing = recordProcessingTelemetry({
+        analyzedAt,
+        inferenceDurationMs: detected.inferenceDurationMs,
+      });
+
+      postMessage({
+        type: 'analysis-frame',
+        sequence: frameSequence,
+        state,
+        landmarks: detected.landmarks,
+        rawLandmarks: detected.landmarks,
+        confidence: detected.confidence,
+        trackingQualityScore: detected.confidence,
+        trackingQuality,
+        cameraReadiness: null,
+        brightness: null,
+        brightnessCalibration: null,
+        smoothing: null,
+        frameSize: { width: bitmap.width, height: bitmap.height },
+        receivedAt: detected.inputReceivedAt,
+        cameraFrameSequence: detected.cameraFrameSequence,
+        mobileSequence: detected.mobileSequence,
+        analyzedAt,
+        processing,
+      });
+
+      if (session?.active && (state.elapsedSeconds || 0) >= (state.durationSeconds || 30)) {
+        debug('session-auto-finish', {
+          selectedTest,
+          elapsedSeconds: state.elapsedSeconds,
+          durationSeconds: state.durationSeconds,
+          fastPath: true,
+        });
+        finishSession({ completedAt: timestampMs });
+      }
+      return;
+    }
+
+    const smoothed = poseSmoother.smooth(detected.landmarks, { timestampMs });
+    const shouldRefreshQuality = shouldRunAnalysisQualityPipeline() || !latestAnalysisQualityPayload;
+    let qualityPayload = null;
+    let brightnessStats = latestAnalysisQualityPayload?.brightness || null;
+    let brightnessCalibrationStats = latestAnalysisQualityPayload?.brightnessCalibration || brightnessCalibration;
+
+    if (shouldRefreshQuality) {
+      const brightnessSample = await sampledFrameBrightness(bitmap);
+      const brightnessContext = brightnessQualityContext(brightnessSample);
+      qualityPayload = buildPoseQualityPayload({
+        detected,
+        timestampMs,
+        poseCount: detected.poseCount,
+        brightness: brightnessContext.brightnessForQuality,
+        brightnessStats: brightnessContext.brightness,
+        brightnessCalibration: brightnessContext.brightnessCalibration,
+        smoothed,
+      });
+      cacheAnalysisQualityPayload(qualityPayload, brightnessContext);
+      brightnessStats = brightnessContext.brightness;
+      brightnessCalibrationStats = brightnessContext.brightnessCalibration;
+      recordSessionQuality(qualityPayload.cameraReadiness, !shouldBlockFrame(qualityPayload.cameraReadiness));
+    } else {
+      qualityPayload = buildCachedAnalysisQualityPayload({ smoothed, detected });
+    }
+
+    const blockedFrame = shouldBlockMovementFrame(qualityPayload.cameraReadiness);
     let poseFrame = null;
     let state = null;
     if (blockedFrame) {
@@ -604,10 +1065,10 @@ async function handleFrame(message) {
       const steadiFrame = steadiLandmarkSeries.push({
         sequence: nextSequence,
         timestampMs,
-        receivedAt: message.receivedAt || timestampMs,
+        receivedAt: detected.inputReceivedAt,
         landmarks: qualityPayload.landmarks,
         confidence: qualityPayload.trackingQualityScore,
-      });
+      }, { includeSeriesFrames: false });
       poseFrame = {
         timestampMs,
         landmarks: steadiFrame.frame.landmarks,
@@ -618,6 +1079,8 @@ async function handleFrame(message) {
         trackingQuality: qualityPayload.trackingQuality,
         trackingQualityScore: qualityPayload.trackingQualityScore,
         cameraReadiness: qualityPayload.cameraReadiness,
+        brightness: brightnessStats,
+        brightnessCalibration: brightnessCalibrationStats,
       };
       state = analyzer.addFrame(poseFrame);
       state = {
@@ -632,6 +1095,16 @@ async function handleFrame(message) {
     }
     frameSequence = nextSequence;
     const analyzedAt = Date.now();
+    if (isStaleDetectedFrame(detected, analyzedAt)) {
+      postFrameSkipped({
+        message,
+        detected,
+        source: 'analysis-frame',
+        reason: 'stale-before-analysis-post',
+        now: analyzedAt,
+      });
+      return;
+    }
     const processing = recordProcessingTelemetry({
       analyzedAt,
       inferenceDurationMs: detected.inferenceDurationMs,
@@ -647,9 +1120,13 @@ async function handleFrame(message) {
       trackingQualityScore: qualityPayload.trackingQualityScore,
       trackingQuality: qualityPayload.trackingQuality,
       cameraReadiness: qualityPayload.cameraReadiness,
+      brightness: brightnessStats,
+      brightnessCalibration: brightnessCalibrationStats,
       smoothing: qualityPayload.smoothing,
       frameSize: { width: bitmap.width, height: bitmap.height },
-      receivedAt: timestampMs,
+      receivedAt: detected.inputReceivedAt,
+      cameraFrameSequence: detected.cameraFrameSequence,
+      mobileSequence: detected.mobileSequence,
       analyzedAt,
       processing,
     });
@@ -680,12 +1157,120 @@ async function handleFrame(message) {
   } finally {
     if (bitmap) bitmap.close?.();
     isAnalyzingFrame = false;
+    scheduleFramePump();
   }
+}
+
+function hasQueuedFrameMessage() {
+  return Boolean(pendingAnalysisFrame || pendingPreviewFrame);
+}
+
+function clearQueuedFrameMessages() {
+  pendingPreviewFrame = null;
+  pendingAnalysisFrame = null;
+  framePumpScheduled = false;
+}
+
+function dropStaleQueuedFrameMessages() {
+  const now = Date.now();
+  if (pendingPreviewFrame && isStaleFrameMessage(pendingPreviewFrame, now)) {
+    postFrameSkipped({
+      message: pendingPreviewFrame,
+      source: 'preview-frame',
+      reason: 'stale-in-queue',
+      now,
+    });
+    pendingPreviewFrame = null;
+  }
+  if (pendingAnalysisFrame && isStaleFrameMessage(pendingAnalysisFrame, now)) {
+    postFrameSkipped({
+      message: pendingAnalysisFrame,
+      source: 'analysis-frame',
+      reason: 'stale-in-queue',
+      now,
+    });
+    pendingAnalysisFrame = null;
+  }
+}
+
+function nextQueuedFrameMessage() {
+  if (session?.active) {
+    const message = pendingAnalysisFrame;
+    pendingAnalysisFrame = null;
+    pendingPreviewFrame = null;
+    return message;
+  }
+  const message = pendingPreviewFrame;
+  pendingPreviewFrame = null;
+  return message;
+}
+
+async function processQueuedFrameMessage() {
+  framePumpScheduled = false;
+  if (isAnalyzingFrame) {
+    scheduleFramePump();
+    return;
+  }
+
+  dropStaleQueuedFrameMessages();
+  if (!hasQueuedFrameMessage()) return;
+
+  const elapsedSinceAnalysisMs = Date.now() - latestAnalyzeAt;
+  if (elapsedSinceAnalysisMs < MIN_FRAME_INTERVAL_MS) {
+    scheduleFramePump(MIN_FRAME_INTERVAL_MS - elapsedSinceAnalysisMs);
+    return;
+  }
+
+  const message = nextQueuedFrameMessage();
+  if (!message) return;
+  if (message.type === 'frame') {
+    await handleFrame(message);
+  } else {
+    await handlePreviewFrame(message);
+  }
+
+  if (hasQueuedFrameMessage()) scheduleFramePump();
+}
+
+function scheduleFramePump(delayMs = 0) {
+  if (framePumpScheduled || isAnalyzingFrame) return;
+  framePumpScheduled = true;
+  setTimeout(() => {
+    processQueuedFrameMessage().catch((error) => {
+      framePumpScheduled = false;
+      debug('frame-pump-failed', {
+        message: error.message || 'Pose frame pump failed.',
+        stack: error.stack || null,
+      });
+      postMessage({ type: 'error', error: error.message || 'Pose frame pump failed.', recoverable: true, at: Date.now() });
+    });
+  }, Math.max(0, delayMs));
+}
+
+function queueFrameMessage(message) {
+  const source = message.type === 'frame' ? 'analysis-frame' : 'preview-frame';
+  const now = Date.now();
+  if (isStaleFrameMessage(message, now)) {
+    postFrameSkipped({
+      message,
+      source,
+      reason: 'stale-before-queue',
+      now,
+    });
+    return;
+  }
+  if (message.type === 'frame') {
+    pendingAnalysisFrame = message;
+  } else {
+    pendingPreviewFrame = message;
+  }
+  scheduleFramePump();
 }
 
 function startSession(message) {
   const startedAt = message.startedAt || Date.now();
   setSelectedTest(message.selectedTest || 'chair_stand');
+  clearQueuedFrameMessages();
   analyzer = createMovementAnalyzer(selectedTest);
   session = {
     active: true,
@@ -698,6 +1283,9 @@ function startSession(message) {
   steadiLandmarkSeries.reset();
   poseSmoother.reset();
   latestQualitySample = null;
+  resetCachedAnalysisQuality();
+  resetBrightnessSampling();
+  resetPipelineCadence();
   resetSessionQuality();
   resetProcessingTelemetry();
   postMessage({ type: 'session-started', startedAt, state: analyzer.getCurrentState(startedAt) });
@@ -707,20 +1295,25 @@ function finishSession(message) {
   if (!session?.active) return;
   const completedAt = message.completedAt || Date.now();
   const qualitySummary = sessionTrackingQualitySummary();
-  const invalidSession = shouldInvalidateSession(qualitySummary);
+  const fastRawAnalysis = usesFastRawAnalysis();
+  const invalidSession = !fastRawAnalysis && shouldInvalidateSession(qualitySummary);
   const analyzerResult = invalidSession ? null : analyzer.finishSession(completedAt);
+  const resultTrackingQualityScore = qualitySummary.sampleCount
+    ? qualitySummary.trackingQualityScore
+    : analyzerResult?.confidence ?? 0;
   const result = invalidSession
     ? invalidTrackingResult(completedAt, qualitySummary)
     : {
       ...analyzerResult,
-      trackingQualityScore: qualitySummary.trackingQualityScore,
+      trackingQualityScore: resultTrackingQualityScore,
       trackingQualitySummary: qualitySummary,
-      trackingQualityWarning: qualitySummary.trackingQualityScore < 0.8
+      trackingQualityWarning: !fastRawAnalysis && resultTrackingQualityScore < 0.8
         ? 'Low-confidence movement tracking. Staff should review before using this result.'
         : null,
       testFlags: {
         ...(analyzerResult?.testFlags || {}),
-        trackingQualityCaution: qualitySummary.trackingQualityScore < 0.8,
+        trackingQualityCaution: !fastRawAnalysis && resultTrackingQualityScore < 0.8,
+        fastRawAnalysis,
       },
     };
   session = session ? { ...session, active: false, completedAt } : null;
@@ -728,6 +1321,7 @@ function finishSession(message) {
 }
 
 function resetSession() {
+  clearQueuedFrameMessages();
   analyzer = createMovementAnalyzer(selectedTest);
   analyzer.reset();
   session = null;
@@ -737,6 +1331,10 @@ function resetSession() {
   steadiLandmarkSeries.reset();
   poseSmoother.reset();
   latestQualitySample = null;
+  resetCachedAnalysisQuality();
+  resetBrightnessSampling();
+  resetBrightnessCalibration();
+  resetPipelineCadence();
   resetSessionQuality();
   isAnalyzingFrame = false;
   resetProcessingTelemetry();
@@ -751,9 +1349,9 @@ self.onmessage = async (event) => {
     }
     if (message.selectedTest) setSelectedTest(message.selectedTest);
     if (message.type === 'init') await initLandmarker(message.config || {});
-    if (message.type === 'preview-frame') await handlePreviewFrame(message);
+    if (message.type === 'preview-frame') queueFrameMessage(message);
     if (message.type === 'start-session') startSession(message);
-    if (message.type === 'frame') await handleFrame(message);
+    if (message.type === 'frame') queueFrameMessage(message);
     if (message.type === 'manual-repetition') {
       const state = analyzer.addManualRepetition();
       postMessage({ type: 'analysis-frame', sequence: frameSequence, state, landmarks: [], receivedAt: Date.now(), analyzedAt: Date.now() });

@@ -2,15 +2,12 @@ export const SteadiAssessmentRules = {
   ChairStandDurationSeconds: 30,
   BalanceHoldSeconds: 10,
   BalanceTandemRiskSignalSeconds: 10,
-  TugRiskSeconds: 12,
   ChairStandRuleSummary:
     'Counts complete stands during 30 seconds. If the user is more than halfway up at the end, it is credited as one rep.',
   ChairStandArmRule:
     'If arms are used during standing, the official Chair Stand score is treated as 0.',
   BalanceRuleSummary:
     'Hold balance for 10 seconds without moving feet or grabbing support.',
-  TugRuleSummary:
-    'Measures standing up, walking 10 feet, turning, returning, and sitting; 12 seconds or more is considered a fall-risk signal.',
 };
 
 export const STEADI_FALL_RISK_SCHEMA_VERSION = 'steadi_fall_risk.v1';

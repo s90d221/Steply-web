@@ -15,6 +15,7 @@
     "chair:log": "node scripts/log-chair-stand-sequence.mjs",
     "steadi:risk:check": "node scripts/check-steadi-risk.mjs",
     "assessment:check": "node scripts/check-assessment-rules.mjs",
+    "care:check": "node scripts/check-care-orchestration-agent.mjs",
     "pose:quality:check": "node scripts/check-pose-quality.mjs",
     "weak:check": "node scripts/check-weak-areas.mjs",
     "otago:check": "node scripts/check-otago-recommendations.mjs",

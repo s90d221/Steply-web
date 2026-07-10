@@ -16,7 +16,7 @@ const SHOW_DEBUG_TOOLS = Boolean(
     && new URLSearchParams(window.location.search).get('poseDebug') === '1'
 );
 
-const selectableMovementTests = movementTests.filter((test) => test.id !== 'timed_up_and_go');
+const selectableMovementTests = movementTests;
 
 const movementGuideContent = {
   four_stage_balance: {

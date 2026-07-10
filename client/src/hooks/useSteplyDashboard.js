@@ -14,7 +14,8 @@ import { buildDemoHistoryItems } from '../data/demoHistory';
 import { demoProfile } from '../data/demoProfile';
 import { useRemotePoseAnalysis } from './useRemotePoseAnalysis';
 import { recommendationLabel, recommendationTemplatesForResult, resultFlagsFor, testLabel } from '../pose/recommendationRules';
-import { buildAssessmentResult } from '../pose/assessmentRules';
+import { SteplyV1TestTypes } from '../data/movementTests';
+import { runCareOrchestrationPipeline } from '../agents/careOrchestrationAgent';
 
 function normalizeFrameSource(frame, mimeType = 'image/jpeg') {
   if (typeof frame !== 'string') return '';
@@ -32,7 +33,7 @@ function shouldUseDemoHistoryFixture() {
 function initialSelectedTestFromUrl() {
   if (typeof window === 'undefined') return 'four_stage_balance';
   const requestedTest = new URLSearchParams(window.location.search).get('test');
-  return ['four_stage_balance', 'chair_stand', 'timed_up_and_go'].includes(requestedTest)
+  return SteplyV1TestTypes.includes(requestedTest)
     ? requestedTest
     : 'four_stage_balance';
 }
@@ -52,6 +53,63 @@ function dashboardWebSocketUrl(bundle) {
   if (typeof window === 'undefined') return value;
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   return `${protocol}//${window.location.host}${value}`;
+}
+
+function buildFinalAnalysisPayload({
+  result,
+  session,
+  selectedTest,
+  historyItems,
+}) {
+  const resultTestType = result.testType || selectedTest;
+  const baseResult = { ...result, testType: resultTestType };
+  const carePipeline = runCareOrchestrationPipeline({
+    result: baseResult,
+    profile: session.profile,
+    historyItems,
+  });
+  const assessmentResult = carePipeline.stages.poseJudgement.assessmentResult;
+  const enrichedResult = {
+    ...baseResult,
+    ...assessmentResult,
+    ...carePipeline.finalResultPatch,
+    rawAnalysisResult: baseResult,
+    carePipeline,
+  };
+  const templates = recommendationTemplatesForResult(enrichedResult);
+  const primaryValue = result.primaryValue ?? result.repetitionCount ?? result.count ?? 0;
+  const primaryLabel = result.primaryLabel || 'Measured Value';
+  const qualityScore = result.trackingQualityScore ?? result.confidence;
+
+  return {
+    ...enrichedResult,
+    sessionId: session.id,
+    userId: session.profile?.id || session.id,
+    testType: resultTestType,
+    testLabel: testLabel(resultTestType),
+    score: Number.isFinite(Number(qualityScore))
+      ? Math.round(Number(qualityScore) * 100)
+      : result.score || 0,
+    count: primaryValue,
+    message: enrichedResult.seniorMessage
+      || `${recommendationLabel(result.recommendationLevel)}: ${result.summaryMessage || `${primaryLabel} ${primaryValue} measured.`}`,
+    features: {
+      ...(result.features || {}),
+      chairStandCount: resultTestType === 'chair_stand' ? result.repetitionCount : undefined,
+      primaryValue,
+      primaryLabel,
+      trunkLean: result.trunkLeanScore,
+      symmetry: result.symmetryScore,
+      stability: result.stabilityScore,
+      confidence: result.confidence,
+      primaryWeakness: enrichedResult.primaryWeakness,
+      fallRiskLevel: enrichedResult.fallRiskLevel,
+      steadiSeverity: carePipeline.agent.observedState.steadiSeverity,
+      agentPriority: carePipeline.agent.decision.priority,
+    },
+    flags: resultFlagsFor(enrichedResult, resultTestType),
+    recommendations: templates,
+  };
 }
 
 export function useSteplyDashboard() {
@@ -108,46 +166,12 @@ export function useSteplyDashboard() {
   const handlePoseFinalResult = useCallback(async (result) => {
     if (!session?.id || !result) return;
 
-    const resultTestType = result.testType || selectedTest;
-    const baseResult = { ...result, testType: resultTestType };
-    const assessmentResult = buildAssessmentResult({
-      result: baseResult,
-      profile: session.profile,
+    const payload = buildFinalAnalysisPayload({
+      result,
+      session,
+      selectedTest,
       historyItems,
     });
-    const enrichedResult = {
-      ...baseResult,
-      ...assessmentResult,
-      rawAnalysisResult: baseResult,
-    };
-    const templates = recommendationTemplatesForResult(enrichedResult);
-    const primaryValue = result.primaryValue ?? result.repetitionCount ?? 0;
-    const primaryLabel = result.primaryLabel || 'Measured Value';
-    const payload = {
-      ...enrichedResult,
-      sessionId: session.id,
-      userId: session.profile?.id || session.id,
-      testType: resultTestType,
-      testLabel: testLabel(resultTestType),
-      score: Math.round(((result.trackingQualityScore ?? result.confidence) || 0) * 100),
-      count: primaryValue,
-      message: assessmentResult.seniorMessage
-        || `${recommendationLabel(result.recommendationLevel)}: ${result.summaryMessage || `${primaryLabel} ${primaryValue} measured.`}`,
-      features: {
-        chairStandCount: resultTestType === 'chair_stand' ? result.repetitionCount : undefined,
-        tugTimeSeconds: resultTestType === 'timed_up_and_go' ? result.primaryValue : undefined,
-        primaryValue,
-        primaryLabel,
-        trunkLean: result.trunkLeanScore,
-        symmetry: result.symmetryScore,
-        stability: result.stabilityScore,
-        confidence: result.confidence,
-        primaryWeakness: assessmentResult.primaryWeakness,
-        fallRiskLevel: assessmentResult.fallRiskLevel,
-      },
-      flags: resultFlagsFor(enrichedResult, resultTestType),
-      recommendations: templates,
-    };
 
     setFinalResult(payload);
     setActiveStep('result');
@@ -158,7 +182,7 @@ export function useSteplyDashboard() {
     } catch (err) {
       setError(err.message);
     }
-  }, [historyItems, refreshHistory, selectedTest, session?.id, session?.profile]);
+  }, [historyItems, refreshHistory, selectedTest, session]);
 
   const handleRemoteFrameProcessed = useCallback((frame) => {
     const socket = socketRef.current;
@@ -383,12 +407,17 @@ export function useSteplyDashboard() {
       return;
     }
     const base = liveResult || buildRealtimePayload(session.id, selectedTest);
-    const payload = {
-      ...base,
-      endedAt: Date.now(),
-      score: base.score || 85,
-      message: base.message || 'Movement check complete. Keep practicing gently.',
-    };
+    const payload = buildFinalAnalysisPayload({
+      result: {
+        ...base,
+        endedAt: Date.now(),
+        score: base.score || 85,
+        message: base.message || 'Movement check complete. Keep practicing gently.',
+      },
+      session,
+      selectedTest,
+      historyItems,
+    });
     setFinalResult(payload);
     setActiveStep('result');
     try {
@@ -398,7 +427,7 @@ export function useSteplyDashboard() {
     } catch (err) {
       setError(err.message);
     }
-  }, [session?.id, selectedTest, liveResult, refreshHistory]);
+  }, [session, selectedTest, liveResult, refreshHistory, historyItems]);
 
   const handleCopyPayload = useCallback(async () => {
     if (!sessionBundle?.qrPayload) return;

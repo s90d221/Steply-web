@@ -233,12 +233,13 @@ try {
   assert.equal(chairBelowThreshold.failedCriteria[0].criterion, 'belowAgeSexThreshold');
   assert.ok(chairBelowThreshold.weaknessScores.lowerBodyEndurance >= 0.5);
 
-  const tugSlow = buildAssessmentResult({
+  const tugExcluded = buildAssessmentResult({
     result: tugResult({ totalTimeSec: 12.4 }),
     profile,
   });
-  assert.equal(tugSlow.failedCriteria[0].criterion, 'tugAtOrAbove12Seconds');
-  assert.ok(tugSlow.weaknessScores.dynamicMobility >= 0.5);
+  assert.equal(tugExcluded.testFlags.excludedFromV1Pipeline, true);
+  assert.equal(tugExcluded.fallRiskLevel, null);
+  assert.equal(tugExcluded.failedCriteria.length, 0);
 
   const combined = buildAssessmentSummary({
     assessments: [tandemUnder10, chairBelowThreshold],
@@ -291,13 +292,6 @@ try {
   assert.equal(incompleteStandChair.recommendedExercises[0].id, 'elevated_sit_to_stand');
   assert.ok(incompleteStandChair.recommendedExercises.some((exercise) => exercise.id === 'partial_sit_to_stand'));
 
-  const slowTurn = buildAssessmentResult({
-    result: tugResult({ totalTimeSec: 10.8, turnDurationSec: 4.2 }),
-    profile,
-  });
-  assert.equal(slowTurn.primaryWeakness, WeaknessIds.TurningControl);
-  assert.ok(slowTurn.recommendedExercises.some((exercise) => exercise.id === 'figure_8_walking'));
-
   const missingProfile = buildAssessmentResult({
     result: chairResult({ reps: 8 }),
     profile: null,
@@ -307,7 +301,7 @@ try {
 
   console.log(`${AssessmentTypes.FourStageBalance}: tandem under 10 seconds -> ${tandemUnder10.fallRiskLevel}`);
   console.log(`${AssessmentTypes.ChairStand30Sec}: below age/sex threshold -> ${chairBelowThreshold.fallRiskLevel}`);
-  console.log(`${AssessmentTypes.TimedUpAndGo}: TUG >= 12 seconds -> ${tugSlow.fallRiskLevel}`);
+  console.log(`${AssessmentTypes.TimedUpAndGo}: excluded from Steply v1.0 -> ${tugExcluded.staffRiskLabel}`);
   console.log(`Combined two failed assessments -> ${combined.fallRiskLevel}`);
   console.log('Assessment rule checks passed.');
 } finally {

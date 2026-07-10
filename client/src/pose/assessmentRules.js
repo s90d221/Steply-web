@@ -18,6 +18,29 @@ export const AssessmentTestTypes = {
   [AssessmentTypes.TimedUpAndGo]: 'timed_up_and_go',
 };
 
+export const SteplyV1AssessmentTypes = [
+  AssessmentTypes.FourStageBalance,
+  AssessmentTypes.ChairStand30Sec,
+];
+
+export const SteplyV1AssessmentTestTypes = SteplyV1AssessmentTypes.map(
+  (assessmentType) => AssessmentTestTypes[assessmentType],
+);
+
+export const CareOrchestrationToolIds = {
+  PoseAnalyzer: 'pose_analyzer',
+  QualityGate: 'quality_gate',
+  SteadiScorer: 'steadi_scorer',
+  VulnerabilityMapper: 'vulnerability_mapper',
+  OtagoPrescriber: 'otago_prescriber',
+  SafetyMonitor: 'safety_monitor',
+  ProgressStore: 'progress_store',
+  ReportComposer: 'report_composer',
+  Notifier: 'notifier',
+  Scheduler: 'scheduler',
+  CueLibrary: 'cue_library',
+};
+
 export const FallRiskLevels = {
   Low: 'LOW',
   Moderate: 'MODERATE',
@@ -647,6 +670,67 @@ export function assessmentTypeFromTestType(testType) {
   if (normalized === 'four_stage_balance') return AssessmentTypes.FourStageBalance;
   if (normalized === 'timed_up_and_go') return AssessmentTypes.TimedUpAndGo;
   return AssessmentTypes.ChairStand30Sec;
+}
+
+export function isSteplyV1AssessmentType(assessmentType) {
+  return SteplyV1AssessmentTypes.includes(assessmentType);
+}
+
+export function isSteplyV1TestType(testType) {
+  return SteplyV1AssessmentTestTypes.includes(normalizeTestType(testType));
+}
+
+function unsupportedV1AssessmentResult(testType) {
+  const normalized = normalizeTestType(testType);
+  const assessmentType = assessmentTypeFromTestType(normalized);
+  const weaknessScores = Object.fromEntries(
+    Object.entries(emptyWeaknessScores()).map(([key, score]) => [key, roundOrNull(score, 2)]),
+  );
+
+  return {
+    schemaVersion: ASSESSMENT_PIPELINE_SCHEMA_VERSION,
+    assessmentDate: new Date().toISOString(),
+    completedAssessments: [],
+    excludedAssessments: [assessmentType],
+    assessmentType,
+    rawMetrics: {
+      testType: normalized,
+      pipelineScope: 'out_of_v1',
+      supportedTestTypes: SteplyV1AssessmentTestTypes,
+    },
+    rawMetricsMeta: metricMeta([], [normalized]),
+    testFlags: {
+      clinicalResultAvailable: false,
+      excludedFromV1Pipeline: true,
+      unsupportedTestType: normalized,
+      unsupportedReason: 'Steply v1.0 scores only 4-Stage Balance and 30 sec Chair Stand.',
+    },
+    failedCriteria: [],
+    weaknessScores,
+    primaryWeakness: 'outOfScope',
+    primaryWeaknessLabel: 'outside Steply v1.0 pipeline',
+    secondaryWeaknesses: [],
+    fallRiskLevel: null,
+    olderAdultLabel: 'Not scored in v1.0',
+    staffRiskLabel: 'OUT OF V1 SCOPE',
+    recommendationPlan: {
+      priority: 'not_scored',
+      reason: 'This assessment is outside the current Steply v1.0 scope.',
+      safetyGates: [],
+      dynamicGameAllowed: false,
+      gameDisabledReason: 'Walking-path checks are not part of the v1.0 camera pipeline.',
+      recommendedExercises: [],
+      seniorMessage: 'This walking check is not scored in Steply v1.0. Please use the balance or chair-stand check.',
+      nextAction: 'Use 4-Stage Balance or 30 sec Chair Stand.',
+    },
+    recommendedExercises: [],
+    recommendations: [],
+    weakAreas: [],
+    weakAreaIds: [],
+    seniorMessage: 'This walking check is not scored in Steply v1.0. Please use the balance or chair-stand check.',
+    staffMessage: 'Timed Up and Go is excluded from Steply v1.0 scoring because it requires walking-path capture outside the fixed camera frame.',
+    professionalNotes: 'Out-of-scope assessment was not passed into STEADI scoring, weak-area mapping, Otago prescription, or fall-risk aggregation.',
+  };
 }
 
 function stageById(balanceResult, stageId) {
@@ -1611,6 +1695,7 @@ function recentHistoryValues(historyItems, testType, metric, limit) {
 function buildTrendWarningsForAssessment(assessment, historyItems = [], config = AssessmentRuleConfig) {
   const warnings = [];
   const testType = testTypeForAssessment(assessment);
+  if (!isSteplyV1AssessmentType(assessment?.assessmentType)) return warnings;
   const limit = config.trend.recentSessionLimit;
   if (testType === 'chair_stand') {
     const current = finiteNumber(assessment.rawMetrics?.completedReps);
@@ -1621,21 +1706,6 @@ function buildTrendWarningsForAssessment(assessment, historyItems = [], config =
         id: 'chair_stand_reps_declined',
         assessment: AssessmentTypes.ChairStand30Sec,
         message: 'Chair stand repetitions declined by 15% or more from the recent average.',
-        heuristic: true,
-        observed: current,
-        recentAverage: roundOrNull(avg, 2),
-      });
-    }
-  }
-  if (testType === 'timed_up_and_go') {
-    const current = finiteNumber(assessment.rawMetrics?.totalTimeSec);
-    const previous = recentHistoryValues(historyItems, testType, 'tugTime', limit);
-    const avg = average(previous);
-    if (current !== null && avg !== null && current >= avg * (1 + config.trend.tugTimeIncreaseRatio)) {
-      warnings.push({
-        id: 'tug_time_increased',
-        assessment: AssessmentTypes.TimedUpAndGo,
-        message: 'TUG time increased by 15% or more from the recent average.',
         heuristic: true,
         observed: current,
         recentAverage: roundOrNull(avg, 2),
@@ -1686,14 +1756,15 @@ export function aggregateFallRisk({
   assessments = [],
   trendWarnings = [],
 } = {}) {
-  const scored = assessments.filter((assessment) => assessment?.testFlags?.clinicalResultAvailable !== false);
+  const scored = assessments.filter((assessment) => (
+    isSteplyV1AssessmentType(assessment?.assessmentType)
+    && assessment?.testFlags?.clinicalResultAvailable !== false
+  ));
   if (!scored.length) return null;
   const failedCriteria = scored.flatMap((assessment) => assessment.failedCriteria || []);
   const clinicalFailures = failedCriteria.filter((criterion) => criterion.clinicalCutoff !== false).length;
   const safetyEvent = scored.some((assessment) => assessment.testFlags?.safetyEvent);
   const repeatedDecline = trendWarnings.filter((warning) => warning.heuristic).length >= 2;
-  const tugFailed = failedCriteria.some((criterion) => criterion.assessment === AssessmentTypes.TimedUpAndGo);
-  const otherFailed = failedCriteria.some((criterion) => criterion.assessment !== AssessmentTypes.TimedUpAndGo);
   const tandemFailed = failedCriteria.some((criterion) => criterion.assessment === AssessmentTypes.FourStageBalance);
   const chairFailed = failedCriteria.some((criterion) => criterion.assessment === AssessmentTypes.ChairStand30Sec);
   const mildWeaknessCount = scored.reduce((count, assessment) => (
@@ -1706,7 +1777,6 @@ export function aggregateFallRisk({
   if (
     safetyEvent
     || clinicalFailures >= 2
-    || (tugFailed && otherFailed)
     || (tandemFailed && chairFailed)
     || repeatedDecline
   ) {
@@ -1723,27 +1793,41 @@ export function buildAssessmentSummary({
   historyItems = [],
   config = AssessmentRuleConfig,
 } = {}) {
-  const trendWarnings = assessments.flatMap((assessment) => buildTrendWarningsForAssessment(assessment, historyItems, config));
-  const fallRiskLevel = aggregateFallRisk({ assessments, trendWarnings });
+  const supportedAssessments = assessments.filter((assessment) => isSteplyV1AssessmentType(assessment?.assessmentType));
+  const excludedAssessments = assessments.filter((assessment) => !isSteplyV1AssessmentType(assessment?.assessmentType));
+  const unsupportedOnly = supportedAssessments.length === 0 && excludedAssessments.length > 0;
+  const trendWarnings = supportedAssessments.flatMap((assessment) => buildTrendWarningsForAssessment(assessment, historyItems, config));
+  const fallRiskLevel = aggregateFallRisk({ assessments: supportedAssessments, trendWarnings });
   const mergedScores = emptyWeaknessScores();
-  for (const assessment of assessments) {
+  for (const assessment of supportedAssessments) {
     for (const [key, value] of Object.entries(assessment.weaknessScores || {})) {
       mergeScore(mergedScores, key, value);
     }
   }
-  const failedCutoffWeaknesses = assessments.flatMap((assessment) => assessment.failedCutoffWeaknesses || []);
+  const failedCutoffWeaknesses = supportedAssessments.flatMap((assessment) => assessment.failedCutoffWeaknesses || []);
   const primaryWeakness = pickPrimaryWeakness(mergedScores, failedCutoffWeaknesses);
+  const displayedPrimaryWeakness = unsupportedOnly ? 'outOfScope' : primaryWeakness;
   const secondary = secondaryWeaknesses(mergedScores, primaryWeakness);
-  const recommendationPlan = buildRecommendationPlan({
+  const unsupportedRecommendationPlan = {
+    priority: 'not_scored',
+    reason: 'Only out-of-scope assessments were supplied.',
+    safetyGates: [],
+    dynamicGameAllowed: false,
+    gameDisabledReason: 'Walking-path checks are not part of the v1.0 camera pipeline.',
+    recommendedExercises: [],
+    seniorMessage: 'Please use the balance or chair-stand check for Steply v1.0 scoring.',
+    nextAction: 'Use 4-Stage Balance or 30 sec Chair Stand.',
+  };
+  const recommendationPlan = unsupportedOnly ? unsupportedRecommendationPlan : buildRecommendationPlan({
     primaryWeakness,
     secondaryWeaknesses: secondary,
     weaknessScores: mergedScores,
     testFlags: {
-      safetyEvent: assessments.some((assessment) => assessment.testFlags?.safetyEvent),
-      lossOfBalanceDetected: assessments.some((assessment) => assessment.testFlags?.lossOfBalanceDetected),
-      wallOrFurnitureSupportDetected: assessments.some((assessment) => assessment.testFlags?.wallOrFurnitureSupportDetected),
-      handSupportDetected: assessments.some((assessment) => assessment.testFlags?.handSupportDetected),
-      armAssistDetected: assessments.some((assessment) => assessment.testFlags?.armAssistDetected),
+      safetyEvent: supportedAssessments.some((assessment) => assessment.testFlags?.safetyEvent),
+      lossOfBalanceDetected: supportedAssessments.some((assessment) => assessment.testFlags?.lossOfBalanceDetected),
+      wallOrFurnitureSupportDetected: supportedAssessments.some((assessment) => assessment.testFlags?.wallOrFurnitureSupportDetected),
+      handSupportDetected: supportedAssessments.some((assessment) => assessment.testFlags?.handSupportDetected),
+      armAssistDetected: supportedAssessments.some((assessment) => assessment.testFlags?.armAssistDetected),
     },
     clinicalResultAvailable: fallRiskLevel !== null,
   });
@@ -1751,14 +1835,23 @@ export function buildAssessmentSummary({
   return {
     schemaVersion: ASSESSMENT_PIPELINE_SCHEMA_VERSION,
     assessmentDate: new Date().toISOString(),
-    completedAssessments: assessments.flatMap((assessment) => assessment.completedAssessments || assessment.assessmentType),
+    completedAssessments: supportedAssessments.flatMap((assessment) => (
+      assessment.completedAssessments?.length ? assessment.completedAssessments : assessment.assessmentType
+    )),
+    excludedAssessments: excludedAssessments.flatMap((assessment) => (
+      assessment.excludedAssessments?.length
+        ? assessment.excludedAssessments
+        : assessment.completedAssessments?.length
+          ? assessment.completedAssessments
+          : assessment.assessmentType
+    )),
     fallRiskLevel,
-    olderAdultLabel: OlderAdultFallRiskLabels[fallRiskLevel] || OlderAdultFallRiskLabels.UNSCORED,
-    staffRiskLabel: StaffFallRiskLabels[fallRiskLevel] || StaffFallRiskLabels.UNSCORED,
-    failedCriteria: assessments.flatMap((assessment) => assessment.failedCriteria || []),
+    olderAdultLabel: unsupportedOnly ? 'Not scored in v1.0' : OlderAdultFallRiskLabels[fallRiskLevel] || OlderAdultFallRiskLabels.UNSCORED,
+    staffRiskLabel: unsupportedOnly ? 'OUT OF V1 SCOPE' : StaffFallRiskLabels[fallRiskLevel] || StaffFallRiskLabels.UNSCORED,
+    failedCriteria: supportedAssessments.flatMap((assessment) => assessment.failedCriteria || []),
     weaknessScores: Object.fromEntries(Object.entries(mergedScores).map(([key, score]) => [key, roundOrNull(score, 2)])),
-    primaryWeakness,
-    primaryWeaknessLabel: WeaknessLabels[primaryWeakness] || primaryWeakness,
+    primaryWeakness: displayedPrimaryWeakness,
+    primaryWeaknessLabel: WeaknessLabels[displayedPrimaryWeakness] || displayedPrimaryWeakness,
     secondaryWeaknesses: secondary,
     trendWarnings,
     recommendationPlan,
@@ -1781,16 +1874,21 @@ export function buildAssessmentResult({
   const assessment = testType === 'four_stage_balance'
     ? buildBalanceAssessment(result, { config })
     : testType === 'timed_up_and_go'
-      ? buildTugAssessment(result, { config })
+      ? unsupportedV1AssessmentResult(testType)
       : buildChairStandAssessment(result, { profile, ageYears, gender, config });
   const trendWarnings = buildTrendWarningsForAssessment(assessment, historyItems, config);
   const fallRiskLevel = aggregateFallRisk({ assessments: [assessment], trendWarnings });
+  const excludedFromV1Pipeline = assessment.testFlags?.excludedFromV1Pipeline;
   const next = {
     ...assessment,
     trendWarnings,
     fallRiskLevel,
-    olderAdultLabel: OlderAdultFallRiskLabels[fallRiskLevel] || OlderAdultFallRiskLabels.UNSCORED,
-    staffRiskLabel: StaffFallRiskLabels[fallRiskLevel] || StaffFallRiskLabels.UNSCORED,
+    olderAdultLabel: excludedFromV1Pipeline
+      ? assessment.olderAdultLabel
+      : OlderAdultFallRiskLabels[fallRiskLevel] || OlderAdultFallRiskLabels.UNSCORED,
+    staffRiskLabel: excludedFromV1Pipeline
+      ? assessment.staffRiskLabel
+      : StaffFallRiskLabels[fallRiskLevel] || StaffFallRiskLabels.UNSCORED,
   };
   return next;
 }

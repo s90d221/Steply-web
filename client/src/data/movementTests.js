@@ -33,64 +33,81 @@ export const fourStageBalanceStages = [
   },
 ];
 
-export const movementTests = [
-  {
-    id: 'four_stage_balance',
-    protocolId: 'steadi_four_stage_balance',
-    axis: 'balance',
-    title: '4-Stage Balance',
-    subtitle: 'Side-by-side to one-leg static balance sequence',
-    duration: '4 x 10 sec',
-    level: 'Balance',
-    primaryMetric: {
-      id: 'hold_time_seconds',
-      label: 'Hold Time',
-      unit: 'sec',
-    },
-    completion: {
-      mode: 'stage_sequence',
-      stopOnFailedStage: true,
-    },
-    stages: fourStageBalanceStages,
+export const SteplyV1TestTypes = ['four_stage_balance', 'chair_stand'];
+
+export const fourStageBalanceTest = {
+  id: 'four_stage_balance',
+  protocolId: 'steadi_four_stage_balance',
+  axis: 'balance',
+  title: '4-Stage Balance',
+  subtitle: 'Side-by-side to one-leg static balance sequence',
+  duration: '4 x 10 sec',
+  level: 'Balance',
+  primaryMetric: {
+    id: 'hold_time_seconds',
+    label: 'Hold Time',
+    unit: 'sec',
   },
-  {
-    id: 'chair_stand',
-    protocolId: 'steadi_30_second_chair_stand',
-    axis: 'chair_stand',
-    title: '30 sec Chair Stand',
-    subtitle: 'Repeated sit-to-stand count in 30 seconds',
-    duration: '30 sec',
+  completion: {
+    mode: 'stage_sequence',
+    stopOnFailedStage: true,
+  },
+  stages: fourStageBalanceStages,
+};
+
+export const chairStandTest = {
+  id: 'chair_stand',
+  protocolId: 'steadi_30_second_chair_stand',
+  axis: 'chair_stand',
+  title: '30 sec Chair Stand',
+  subtitle: 'Repeated sit-to-stand count in 30 seconds',
+  duration: '30 sec',
+  durationSeconds: 30,
+  level: 'Strength',
+  primaryMetric: {
+    id: 'repetition_count',
+    label: 'Chair Stands',
+    unit: 'reps',
+  },
+  completion: {
+    mode: 'timed_repetitions',
     durationSeconds: 30,
-    level: 'Strength',
-    primaryMetric: {
-      id: 'repetition_count',
-      label: 'Chair Stands',
-      unit: 'reps',
-    },
-    completion: {
-      mode: 'timed_repetitions',
-      durationSeconds: 30,
-    },
   },
-  {
-    id: 'timed_up_and_go',
-    protocolId: 'steadi_timed_up_and_go',
-    axis: 'mobility',
-    title: 'Timed Up and Go',
-    subtitle: 'Stand, walk 3 meters, turn, return, and sit',
-    duration: 'Up to 45 sec',
-    durationSeconds: 45,
-    level: 'Mobility',
-    primaryMetric: {
-      id: 'total_time_seconds',
-      label: 'TUG Time',
-      unit: 'sec',
-    },
-    completion: {
-      mode: 'timed_mobility',
-      pathMeters: 3,
-      returnPathMeters: 3,
-      maxDurationSeconds: 45,
-    },
+};
+
+export const timedUpAndGoExperimentalTest = {
+  id: 'timed_up_and_go',
+  protocolId: 'steadi_timed_up_and_go',
+  axis: 'mobility',
+  title: 'Timed Up and Go',
+  subtitle: 'Out of Steply v1.0 scope; requires walking-path capture',
+  duration: 'Up to 45 sec',
+  durationSeconds: 45,
+  level: 'Mobility',
+  pipelineScope: 'future',
+  primaryMetric: {
+    id: 'total_time_seconds',
+    label: 'TUG Time',
+    unit: 'sec',
   },
+  completion: {
+    mode: 'timed_mobility',
+    pathMeters: 3,
+    returnPathMeters: 3,
+    maxDurationSeconds: 45,
+  },
+};
+
+export const movementTests = [
+  fourStageBalanceTest,
+  chairStandTest,
+];
+
+export const experimentalMovementTests = [
+  timedUpAndGoExperimentalTest,
+];
+
+export const allMovementTests = [
+  ...movementTests,
+  ...experimentalMovementTests,
 ];

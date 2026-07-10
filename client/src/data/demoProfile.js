@@ -8,4 +8,11 @@ export const demoProfile = {
   heightCm: 165,
   movementNotes: 'Demo profile linked from mobile QR flow.',
   safetyNote: 'Use a stable chair and stop if pain or dizziness occurs.',
+  steadiStep1: {
+    fallenPastYear: false,
+    feelsUnsteady: true,
+    worriesAboutFalling: true,
+    fallCountPastYear: 0,
+    fallInjuryPastYear: false,
+  },
 };

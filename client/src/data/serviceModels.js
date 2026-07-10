@@ -52,21 +52,18 @@ export function displayWeakAreaLabel(value) {
 }
 
 export function buildDemoFinalResult(testType = 'four_stage_balance') {
-  const weakAreaId = testType === 'timed_up_and_go'
-    ? RuleWeaknessIds.TurningControl
-    : testType === 'chair_stand'
-      ? RuleWeaknessIds.HipExtensorGluteStrength
-      : RuleWeaknessIds.HipAbductorMediolateralControl;
-  const recommendation = testType === 'timed_up_and_go'
-    ? AssessmentExerciseLibrary.figure_8_walking
-    : testType === 'chair_stand'
-      ? AssessmentExerciseLibrary.sit_to_stand_practice
-      : {
-        ...OtagoExerciseCatalog[OtagoExerciseKeys.SideHipStrengthening],
-        id: 'side_hip_strengthening',
-        name: 'Side Hip Strengthening',
-        reason: 'Side-to-side sway was higher during balance stance.',
-      };
+  const normalizedTestType = testType === 'chair_stand' ? 'chair_stand' : 'four_stage_balance';
+  const weakAreaId = normalizedTestType === 'chair_stand'
+    ? RuleWeaknessIds.HipExtensorGluteStrength
+    : RuleWeaknessIds.HipAbductorMediolateralControl;
+  const recommendation = normalizedTestType === 'chair_stand'
+    ? AssessmentExerciseLibrary.sit_to_stand_practice
+    : {
+      ...OtagoExerciseCatalog[OtagoExerciseKeys.SideHipStrengthening],
+      id: 'side_hip_strengthening',
+      name: 'Side Hip Strengthening',
+      reason: 'Side-to-side sway was higher during balance stance.',
+    };
   const normalizedRecommendation = {
     ...recommendation,
     exerciseKey: recommendation.exerciseKey || recommendation.id || recommendation.exerciseKey,
@@ -77,31 +74,25 @@ export function buildDemoFinalResult(testType = 'four_stage_balance') {
     recommendationRole: 'primary',
     reason: recommendation.reason || 'This exercise matches today’s movement pattern.',
   };
-  const primaryValue = testType === 'timed_up_and_go'
-    ? 13.4
-    : testType === 'chair_stand'
-      ? 9
-      : 8.6;
-  const primaryLabel = testType === 'timed_up_and_go'
-    ? 'TUG Time'
-    : testType === 'chair_stand'
-      ? 'Chair Stands'
-      : 'Hold Time';
+  const primaryValue = normalizedTestType === 'chair_stand'
+    ? 9
+    : 8.6;
+  const primaryLabel = normalizedTestType === 'chair_stand'
+    ? 'Chair Stands'
+    : 'Hold Time';
 
   return {
     sessionId: 'visual-review-session',
     userId: 'demo-local-profile',
-    testType,
-    testLabel: testType === 'timed_up_and_go'
-      ? 'Timed Up and Go'
-      : testType === 'chair_stand'
-        ? '30 sec Chair Stand'
-        : '4-Stage Balance',
+    testType: normalizedTestType,
+    testLabel: normalizedTestType === 'chair_stand'
+      ? '30 sec Chair Stand'
+      : '4-Stage Balance',
     score: 82,
     confidence: 0.91,
     primaryLabel,
     primaryValue,
-    repetitionCount: testType === 'chair_stand' ? 9 : 0,
+    repetitionCount: normalizedTestType === 'chair_stand' ? 9 : 0,
     stabilityScore: 0.78,
     trunkLeanScore: 0.84,
     symmetryScore: 0.76,
@@ -112,17 +103,17 @@ export function buildDemoFinalResult(testType = 'four_stage_balance') {
     primaryWeaknessLabel: weakAreaLabels[weakAreaId],
     secondaryWeaknesses: [],
     weaknessScores: {
-      ankleStrategyProprioception: testType === 'four_stage_balance' ? 0.38 : 0.12,
-      hipAbductorMediolateralControl: testType === 'four_stage_balance' ? 0.72 : 0.18,
-      lowerBodyEndurance: testType === 'chair_stand' ? 0.64 : 0.18,
-      quadricepsStrength: testType === 'chair_stand' ? 0.51 : 0.12,
-      hipExtensorGluteStrength: testType === 'chair_stand' ? 0.7 : 0.14,
+      ankleStrategyProprioception: normalizedTestType === 'four_stage_balance' ? 0.38 : 0.12,
+      hipAbductorMediolateralControl: normalizedTestType === 'four_stage_balance' ? 0.72 : 0.18,
+      lowerBodyEndurance: normalizedTestType === 'chair_stand' ? 0.64 : 0.18,
+      quadricepsStrength: normalizedTestType === 'chair_stand' ? 0.51 : 0.12,
+      hipExtensorGluteStrength: normalizedTestType === 'chair_stand' ? 0.7 : 0.14,
       eccentricControl: 0.25,
-      dynamicMobility: testType === 'timed_up_and_go' ? 0.58 : 0.18,
-      gaitStability: testType === 'timed_up_and_go' ? 0.44 : 0.16,
-      turningControl: testType === 'timed_up_and_go' ? 0.72 : 0.16,
+      dynamicMobility: 0,
+      gaitStability: 0,
+      turningControl: 0,
       asymmetryNeedsReview: 0.18,
-      balanceControl: testType === 'four_stage_balance' ? 0.56 : 0.12,
+      balanceControl: normalizedTestType === 'four_stage_balance' ? 0.56 : 0.12,
     },
     weakAreas: [{ id: weakAreaId, label: weakAreaLabels[weakAreaId] }],
     recommendations: [normalizedRecommendation],
@@ -131,31 +122,23 @@ export function buildDemoFinalResult(testType = 'four_stage_balance') {
       safetyGates: [],
       recommendedExercises: [normalizedRecommendation],
     },
-    rawMetrics: testType === 'timed_up_and_go'
+    rawMetrics: normalizedTestType === 'chair_stand'
       ? {
-        totalTimeSec: 13.4,
-        turnDurationSec: 3.4,
-        gaitSpeedEstimate: 0.72,
-        wallOrFurnitureSupportDetected: false,
+        completedReps: 9,
+        officialClinicalReps: 9,
+        trunkForwardLeanPeak: 22,
+        armAssistDetected: false,
         confidenceScore: 0.91,
       }
-      : testType === 'chair_stand'
-        ? {
-          completedReps: 9,
-          officialClinicalReps: 9,
-          trunkForwardLeanPeak: 22,
-          armAssistDetected: false,
-          confidenceScore: 0.91,
-        }
-        : {
-          tandemHoldSec: 8.6,
-          trunkSwayML: 0.052,
-          handSupportDetected: false,
-          confidenceScore: 0.91,
-        },
+      : {
+        tandemHoldSec: 8.6,
+        trunkSwayML: 0.052,
+        handSupportDetected: false,
+        confidenceScore: 0.91,
+      },
     flags: [
-      testType === 'timed_up_and_go' ? 'TUG time: 13.4 seconds' : testType === 'chair_stand' ? 'Chair stands: 9' : 'Tandem hold: 8.6 seconds',
-      testType === 'timed_up_and_go' ? 'Turning took a little longer today' : testType === 'chair_stand' ? 'Forward lean increased during standing' : 'Side-to-side sway increased near the end',
+      normalizedTestType === 'chair_stand' ? 'Chair stands: 9' : 'Tandem hold: 8.6 seconds',
+      normalizedTestType === 'chair_stand' ? 'Forward lean increased during standing' : 'Side-to-side sway increased near the end',
       'Full-body view was clear',
     ],
     message: weakAreaSupportMessages[weakAreaId],

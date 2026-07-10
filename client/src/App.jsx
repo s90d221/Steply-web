@@ -12,6 +12,7 @@ import { CareDashboard } from './components/CareDashboard';
 import { ReportsPanel } from './components/ReportsPanel';
 import { buildDemoFinalResult, centerParticipants } from './data/serviceModels';
 import { buildDemoHistoryItems } from './data/demoHistory';
+import { SteplyV1TestTypes } from './data/movementTests';
 import './styles/app.css';
 
 function emergencyExerciseResult(dashboard) {
@@ -64,7 +65,7 @@ function screenConfigFromUrl() {
     reportMode: 'family',
     participantId: null,
     missionPreview: false,
-    selectedTest: ['four_stage_balance', 'chair_stand', 'timed_up_and_go'].includes(requestedTest)
+    selectedTest: SteplyV1TestTypes.includes(requestedTest)
       ? requestedTest
       : null,
   };
@@ -119,15 +120,6 @@ function previewStateForTest(selectedTest, elapsedSeconds) {
       primaryValue: Math.min(12, Math.max(0, Math.floor((elapsedSeconds - 2) / 2))),
       phase: elapsedSeconds % 4 < 2 ? 'rising' : 'seated',
       postureMessage: 'Stand fully, then sit down with control.',
-    };
-  }
-  if (selectedTest === 'timed_up_and_go') {
-    return {
-      durationSeconds: 45,
-      primaryLabel: 'TUG Time',
-      primaryValue: elapsedSeconds,
-      phase: elapsedSeconds < 4 ? 'rising' : elapsedSeconds < 22 ? 'walking' : 'seated',
-      postureMessage: 'Walk steadily, turn slowly, return, and sit.',
     };
   }
   return {

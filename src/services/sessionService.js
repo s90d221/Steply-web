@@ -95,6 +95,7 @@ function normalizeProfile(profile) {
     heightCm: profile.heightCm || null,
     movementNotes: profile.movementNotes || null,
     safetyNote: profile.safetyNote || null,
+    steadiStep1: profile.steadiStep1 || profile.steadiAssessment || profile.fallScreen || null,
     createdAt: profile.createdAt || null,
     updatedAt: profile.updatedAt || Date.now(),
   };

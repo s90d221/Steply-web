@@ -22,11 +22,6 @@ function recommendationLevelForFallback(testType, state) {
     if (primaryValue >= 60) return 'practice_needed';
     return 'recheck';
   }
-  if (testType === 'timed_up_and_go') {
-    if (primaryValue > 0 && primaryValue < 12) return 'steady';
-    if (primaryValue >= 12) return 'practice_needed';
-    return 'recheck';
-  }
   if (primaryValue >= 12) return 'steady';
   if (primaryValue >= 8) return 'practice_needed';
   return 'recheck';
@@ -38,11 +33,9 @@ function fallbackResultFromState({ selectedTest, state, durationSeconds, started
   const primaryLabel = state.primaryLabel
     || (testType === 'standing_posture'
       ? 'Posture Score'
-      : testType === 'timed_up_and_go'
-        ? 'TUG Time'
-        : testType === 'four_stage_balance'
-          ? 'Tandem Hold Seconds'
-          : 'Chair Stands');
+      : testType === 'four_stage_balance'
+        ? 'Tandem Hold Seconds'
+        : 'Chair Stands');
   const recommendationLevel = recommendationLevelForFallback(testType, state);
   return {
     testType,

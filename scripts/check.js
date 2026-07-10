@@ -20,6 +20,7 @@ for (const file of files) {
 
 execFileSync('node', ['scripts/check-chair-stand-count.mjs'], { stdio: 'inherit' });
 execFileSync('node', ['scripts/check-four-stage-balance-protocol.mjs'], { stdio: 'inherit' });
+execFileSync('node', ['scripts/check-care-orchestration-agent.mjs'], { stdio: 'inherit' });
 
 function walk(dir) {
   for (const item of fs.readdirSync(dir)) {

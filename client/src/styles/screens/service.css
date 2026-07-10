@@ -176,10 +176,11 @@
 .service-shell--panel-exercise {
   width: 100%;
   max-width: none;
-  height: 100vh;
-  height: 100dvh;
-  min-height: 0;
-  overflow: hidden;
+  height: auto;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding: clamp(16px, 1.2vw, 24px);
   padding-bottom: max(24px, env(safe-area-inset-bottom));
 }
@@ -193,17 +194,17 @@
   gap: 0;
   width: 100%;
   max-width: none;
-  height: 100%;
+  height: auto;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
   justify-self: stretch;
 }
 
 .service-shell--panel-exercise .screen-stage,
 .service-shell--panel-exercise .panel-grid--exercise {
-  height: 100%;
+  height: auto;
   max-height: none;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .service-shell--panel-exercise .exercise-mission-layout {

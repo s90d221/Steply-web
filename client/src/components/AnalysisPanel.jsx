@@ -23,11 +23,11 @@ const movementGuideContent = {
     image: standingPostureGuide,
     alt: '4-stage balance standing guide from front and side views',
     steps: [
-      'Start with your feet side by side, then follow the stance shown on the screen.',
-      'Keep a chair or wall within reach for semi-tandem, tandem, and one-leg stances.',
-      'If you sway, place your foot down and reset slowly.',
+      'Complete each stance for 10 seconds before moving to the next one.',
+      'Keep your eyes open and do not move your feet during the timed hold.',
+      'Keep support nearby for safety, but do not hold it during the timed hold.',
     ],
-    tip: 'Steply watches how you settle into the stance and how gently you hold it.',
+    tip: 'The test stops when a stage cannot be held for 10 seconds without foot movement or support.',
     setup: {
       title: 'Front-view setup',
       body: 'Place your phone about 1.5m away and make sure your full body is visible.',
@@ -128,6 +128,66 @@ function phaseLabel(phase) {
   if (phase === 'walking') return 'Walking';
   if (phase === 'unknown') return 'Searching';
   return 'Waiting';
+}
+
+function currentBalanceProtocolStage(protocol) {
+  if (!protocol?.stages?.length) return null;
+  return protocol.stages.find((stage) => stage.id === protocol.currentStageId)
+    || protocol.stages.find((stage) => stage.status === 'holding')
+    || protocol.stages.find((stage) => stage.status === 'waiting')
+    || protocol.stages.find((stage) => stage.status === 'failed')
+    || protocol.stages.at(-1);
+}
+
+function balanceProtocolTitle(protocol, stage) {
+  if (!protocol || !stage) return '4-Stage Balance';
+  if (protocol.status === 'completed') return 'Test complete';
+  if (protocol.status === 'stopped') return 'Stop';
+  if (stage.status === 'holding') return 'Ready, begin';
+  return `Stage ${stage.order}: ${stage.title}`;
+}
+
+function balanceProtocolBody(protocol, stage) {
+  if (!protocol) return 'Follow each stance in order.';
+  if (protocol.status === 'completed') return 'All four 10-second stages are complete.';
+  if (protocol.status === 'stopped') return protocol.message || 'The test stopped at this stage.';
+  return protocol.message || stage?.instruction || 'Hold the current stance for 10 seconds.';
+}
+
+function balanceStageSetupInstruction(stageId) {
+  if (stageId === 'semi_tandem') return 'Place the instep of one foot next to the big toe of the other foot.';
+  if (stageId === 'tandem') return 'Place one foot directly in front of the other, heel touching toe.';
+  if (stageId === 'one_leg') return 'Stand on one foot. Keep your eyes open and do not use support.';
+  return 'Stand with your feet side by side. Keep your eyes open.';
+}
+
+function fallbackBalanceProtocol(testInfo) {
+  const stages = (testInfo?.stages || []).map((stage, index) => ({
+    id: stage.id,
+    title: stage.title,
+    order: stage.sequence || index + 1,
+    status: index === 0 ? 'waiting' : 'pending',
+    targetHoldSeconds: stage.durationSeconds || stage.passThresholdSeconds || 10,
+    holdSeconds: 0,
+    remainingSeconds: stage.durationSeconds || stage.passThresholdSeconds || 10,
+    instruction: balanceStageSetupInstruction(stage.id),
+  }));
+  const firstStage = stages[0] || null;
+  return {
+    status: 'waiting',
+    currentStageId: firstStage?.id || 'side_by_side',
+    currentStageIndex: 0,
+    currentStageOrder: firstStage?.order || 1,
+    currentStageTitle: firstStage?.title || 'Side-by-side Stand',
+    targetHoldSeconds: firstStage?.targetHoldSeconds || 10,
+    completedCount: 0,
+    totalStages: stages.length || 4,
+    stopOnFailedStage: true,
+    shouldFinishSession: false,
+    failureReason: null,
+    message: firstStage?.instruction || 'Stand with your feet side by side. Keep your eyes open.',
+    stages,
+  };
 }
 
 function setupStatusLabel(setupCheck, isRunning, hasFrame) {
@@ -299,6 +359,17 @@ export function AnalysisPanel({
   const resultLevel = result?.recommendationLevel
     ? recommendationLabel(result.recommendationLevel)
     : '-';
+  const balanceProtocol = selectedTest === 'four_stage_balance'
+    ? state.balanceProtocol || result?.balanceResult?.officialProtocol || result?.officialProtocol || fallbackBalanceProtocol(selectedTestInfo)
+    : null;
+  const balanceStage = currentBalanceProtocolStage(balanceProtocol);
+  const balanceStageHold = Number(balanceStage?.holdSeconds) || 0;
+  const balanceStageTarget = Number(balanceStage?.targetHoldSeconds || balanceProtocol?.targetHoldSeconds || 10);
+  const balanceCompletedCount = Number(balanceProtocol?.completedCount) || 0;
+  const balanceStageLabel = balanceStage
+    ? `Stage ${balanceStage.order} / ${balanceProtocol?.totalStages || 4}`
+    : 'Stage';
+  const isBalanceProtocolActive = selectedTest === 'four_stage_balance' && Boolean(balanceProtocol);
 
   const cameraStatusText = isSetupImageMode
     ? 'Setup image preview'
@@ -488,19 +559,27 @@ export function AnalysisPanel({
   const movementGuide = movementGuideContent[selectedTest] || movementGuideContent.chair_stand;
   const canUseReferenceOverlay = selectedTest === 'standing_posture' || selectedTest === 'four_stage_balance';
   const isSetupCountingDown = setupCountdown !== null;
-  const timerGuidanceTitle = isMissionRunning
-    ? 'Keep steady'
-    : isSetupCountingDown
-      ? `Starting in ${setupCountdown} sec`
-      : 'Full body in view';
-  const timerGuidanceBody = isMissionRunning
-    ? 'Eyes forward, move slowly'
-    : isSetupCountingDown
-      ? 'Hold your setup position'
-      : 'Stand 1.5m from the phone';
-  const timerDisplayValue = isSetupCountingDown ? setupCountdown : elapsedSeconds;
-  const timerDisplayMax = isSetupCountingDown ? READY_HOLD_SECONDS : durationSeconds;
-  const timerDisplayLabel = isSetupCountingDown ? 'setup' : 'sec';
+  const timerGuidanceTitle = isBalanceProtocolActive
+    ? balanceProtocolTitle(balanceProtocol, balanceStage)
+    : isMissionRunning
+      ? 'Keep steady'
+      : isSetupCountingDown
+        ? `Starting in ${setupCountdown} sec`
+        : 'Full body in view';
+  const timerGuidanceBody = isBalanceProtocolActive
+    ? balanceProtocolBody(balanceProtocol, balanceStage)
+    : isMissionRunning
+      ? 'Eyes forward, move slowly'
+      : isSetupCountingDown
+        ? 'Hold your setup position'
+        : 'Stand 1.5m from the phone';
+  const timerDisplayValue = isBalanceProtocolActive
+    ? Math.round(Math.min(balanceStageTarget, balanceStageHold))
+    : isSetupCountingDown ? setupCountdown : elapsedSeconds;
+  const timerDisplayMax = isBalanceProtocolActive
+    ? balanceStageTarget
+    : isSetupCountingDown ? READY_HOLD_SECONDS : durationSeconds;
+  const timerDisplayLabel = isBalanceProtocolActive ? 'stage sec' : isSetupCountingDown ? 'setup' : 'sec';
 
   return (
     <div className="analysis-layout analysis-layout--guided distance-mode distance-mode--analysis">
@@ -540,16 +619,20 @@ export function AnalysisPanel({
 
         <SteplyCard className="feedback-stack feedback-stack--analysis guided-status-card">
           <div className="eyebrow">Live Status</div>
-          <h3>Large, simple numbers</h3>
+          <h3>{isBalanceProtocolActive ? balanceStage?.title || '4-Stage Balance' : 'Large, simple numbers'}</h3>
 
           <div className="guided-status-row">
-            <span>Time</span>
-            <strong>{elapsedSeconds} / {durationSeconds}s</strong>
+            <span>{isBalanceProtocolActive ? 'Stage' : 'Time'}</span>
+            <strong>{isBalanceProtocolActive ? balanceStageLabel : `${elapsedSeconds} / ${durationSeconds}s`}</strong>
           </div>
 
           <div className="guided-status-row">
-            <span>{primaryLabel}</span>
-            <strong>{roundMetric(primaryValue, 0)}</strong>
+            <span>{isBalanceProtocolActive ? 'Hold' : primaryLabel}</span>
+            <strong>
+              {isBalanceProtocolActive
+                ? `${roundMetric(balanceStageHold, 0)} / ${balanceStageTarget}s`
+                : roundMetric(primaryValue, 0)}
+            </strong>
           </div>
         </SteplyCard>
       </aside>
@@ -608,10 +691,17 @@ export function AnalysisPanel({
             </div>
 
             {selectedTest === 'four_stage_balance' ? (
-              <div className={isMissionRunning ? 'foot-placement-guide foot-placement-guide--active' : 'foot-placement-guide'} aria-hidden="true">
+              <div
+                className={[
+                  'foot-placement-guide',
+                  balanceStage?.id ? `foot-placement-guide--${balanceStage.id}` : 'foot-placement-guide--side_by_side',
+                  isMissionRunning ? 'foot-placement-guide--active' : '',
+                ].filter(Boolean).join(' ')}
+                aria-hidden="true"
+              >
                 <span className="foot-placement-guide__foot foot-placement-guide__foot--back" />
                 <span className="foot-placement-guide__foot foot-placement-guide__foot--front" />
-                <strong>Tandem stance</strong>
+                <strong>{balanceStage?.title || 'Side-by-side Stand'}</strong>
               </div>
             ) : null}
 
@@ -621,7 +711,9 @@ export function AnalysisPanel({
                 <strong>{setupMessage}</strong>
                 <p>
                   {isMissionRunning
-                    ? 'Hold this position gently and keep your eyes forward.'
+                    ? isBalanceProtocolActive
+                      ? balanceProtocolBody(balanceProtocol, balanceStage)
+                      : 'Hold this position gently and keep your eyes forward.'
                     : isSetupImageMode
                       ? 'This image is only for checking setup.'
                     : displaySetupCheck.isReady
@@ -679,6 +771,16 @@ export function AnalysisPanel({
                 <li>Camera check needed</li>
                 <li>Tracking quality: {percent(result.trackingQualityScore ?? result.confidence)}</li>
                 <li>No screening result was generated.</li>
+              </ul>
+            ) : result.testType === 'four_stage_balance' ? (
+              <ul>
+                <li>Stages completed: {result.balanceResult?.officialProtocol?.completedCount ?? 0} / 4</li>
+                <li>Tandem hold: {roundMetric(result.balanceResult?.stageById?.tandem?.holdSeconds ?? result.primaryValue, 1)} sec</li>
+                <li>
+                  {result.balanceResult?.officialProtocol?.status === 'completed'
+                    ? 'Official sequence completed'
+                    : result.balanceResult?.officialProtocol?.message || 'Official stop rule applied'}
+                </li>
               </ul>
             ) : result.testType === 'timed_up_and_go' ? (
               <ul>

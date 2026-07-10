@@ -9,7 +9,7 @@ export const ArExerciseGameTypes = {
 };
 
 export const ArExerciseGameLabels = {
-  [ArExerciseGameTypes.BubbleLegRaise]: 'Side Leg Bubble Pop',
+  [ArExerciseGameTypes.BubbleLegRaise]: 'Side Leg Target Reach',
   [ArExerciseGameTypes.StarKneeExtension]: 'Knee Extension Star Reach',
   [ArExerciseGameTypes.ButterflyBalance]: 'Balance Butterfly Hold',
 };
@@ -33,8 +33,49 @@ export const ArExerciseGameConfig = {
 };
 
 const BUBBLE_KEYS = new Set(['side_leg_raise', 'side_hip_strengthening']);
-const STAR_KEYS = new Set(['knee_extension', 'sit_to_stand', 'chair_stand']);
-const BUTTERFLY_KEYS = new Set(['balance_retraining', 'tandem_stance', 'tandem_walk', 'one_leg_stance']);
+const STAR_KEYS = new Set([
+  'knee_extension',
+  'sit_to_stand',
+  'chair_stand',
+  'elevated_sit_to_stand',
+  'partial_sit_to_stand',
+  'knee_alignment_sit_to_stand',
+]);
+const BUTTERFLY_KEYS = new Set([
+  'balance_retraining',
+  'tandem_stance',
+  'tandem_walk',
+  'one_leg_stance',
+  'weight_shift_drill',
+  'tai_chi_weight_transfer',
+  'heel_raises',
+  'toe_raises',
+  'supported_tandem_stand',
+  'supported_one_leg_stand',
+  'heel_toe_walking',
+  'sideways_walking',
+  'supported_walking',
+  'figure_8_walking',
+  'gentle_walking_plan',
+  'balanced_bilateral_practice',
+]);
+
+const CHAIR_RISE_KEYS = new Set([
+  'sit_to_stand',
+  'chair_stand',
+  'sit_to_stand_practice',
+  'elevated_sit_to_stand',
+  'partial_sit_to_stand',
+  'knee_alignment_sit_to_stand',
+  'mini_knee_bends',
+  'sit_to_stand_ladder',
+  'slow_sit_to_stand',
+]);
+
+const WEIGHT_SHIFT_KEYS = new Set(['weight_shift_drill', 'tai_chi_weight_transfer', 'balance_retraining']);
+const HOLD_BALANCE_KEYS = new Set(['tandem_stance', 'supported_tandem_stand', 'one_leg_stance', 'supported_one_leg_stand']);
+const WALKING_PATH_KEYS = new Set(['tandem_walk', 'heel_toe_walking', 'sideways_walking', 'supported_walking', 'figure_8_walking', 'gentle_walking_plan']);
+const ANKLE_REP_KEYS = new Set(['heel_raises', 'toe_raises']);
 
 function finite(value) {
   return typeof value === 'number' && Number.isFinite(value);
@@ -124,9 +165,26 @@ function landmarksFor(landmarks) {
 }
 
 export function gameTypeForRecommendation(recommendation = {}) {
+  const exerciseKey = recommendation.exerciseKey || recommendation.id;
+  if (CHAIR_RISE_KEYS.has(exerciseKey) || recommendation.arInputKey === 'sit_to_stand') {
+    return ArExerciseGameTypes.StarKneeExtension;
+  }
+  if (
+    WEIGHT_SHIFT_KEYS.has(exerciseKey)
+    || HOLD_BALANCE_KEYS.has(exerciseKey)
+    || WALKING_PATH_KEYS.has(exerciseKey)
+    || ANKLE_REP_KEYS.has(exerciseKey)
+  ) {
+    return ArExerciseGameTypes.ButterflyBalance;
+  }
+  if (exerciseKey === 'side_hip_strengthening' || recommendation.arInputKey === 'side_leg_raise') {
+    return ArExerciseGameTypes.BubbleLegRaise;
+  }
+
   const keys = [
     recommendation.arInputKey,
     recommendation.exerciseKey,
+    recommendation.id,
     recommendation.gameType,
   ].filter(Boolean);
   if (keys.some((key) => BUBBLE_KEYS.has(key))) return ArExerciseGameTypes.BubbleLegRaise;
@@ -135,19 +193,36 @@ export function gameTypeForRecommendation(recommendation = {}) {
   return null;
 }
 
-export function createInitialArGameState(gameType = ArExerciseGameTypes.BubbleLegRaise) {
+function targetRepetitionsForRecommendation(recommendation = {}) {
+  const reps = Number(recommendation.defaultReps);
+  if (Number.isFinite(reps) && reps > 0) return Math.round(reps);
+  const typeReps = Number.parseInt(recommendation.type, 10);
+  if (Number.isFinite(typeReps) && typeReps > 0) return typeReps;
+  const holdSeconds = Number(recommendation.defaultHoldSec);
+  return holdSeconds > 0 ? 1 : ArExerciseGameConfig.targetRepetitions;
+}
+
+function targetHoldMsForRecommendation(recommendation = {}) {
+  const holdSeconds = Number(recommendation.defaultHoldSec);
+  if (Number.isFinite(holdSeconds) && holdSeconds > 0) return holdSeconds * 1000;
+  return ArExerciseGameConfig.butterflyBalance.targetHoldMs;
+}
+
+export function createInitialArGameState(gameType = ArExerciseGameTypes.BubbleLegRaise, recommendation = {}) {
   return {
     gameType,
     count: 0,
-    targetRepetitions: ArExerciseGameConfig.targetRepetitions,
+    targetRepetitions: targetRepetitionsForRecommendation(recommendation),
+    targetHoldMs: targetHoldMsForRecommendation(recommendation),
     progress: 0,
-    armed: true,
+    armed: gameType === ArExerciseGameTypes.ButterflyBalance,
     setComplete: false,
     lastTimestampMs: null,
     holdMs: 0,
     burstKey: 0,
     prompt: 'Step into the camera view to begin.',
     activeSide: null,
+    initialStandingObserved: false,
     target: { x: 50, y: 50 },
     foot: null,
     metrics: {},
@@ -245,9 +320,9 @@ function updateBubbleGame(previousState, landmarks, timestampMs) {
     target: { x: targetX, y: targetY },
     foot,
     prompt: counted
-      ? 'Bubble popped. Nice control.'
+      ? 'Target reached. Nice control.'
       : previousState.setComplete
-        ? 'You completed the 10-rep set.'
+        ? `You completed the ${previousState.targetRepetitions}-rep set.`
         : 'Lift one leg gently out to the side.',
     metrics: {
       ...metric,
@@ -280,7 +355,147 @@ function kneeExtensionMetric(landmarks) {
   };
 }
 
-function updateStarGame(previousState, landmarks, timestampMs) {
+function averageFinite(values) {
+  const finiteValues = values.filter(finite);
+  return finiteValues.length
+    ? finiteValues.reduce((sum, value) => sum + value, 0) / finiteValues.length
+    : null;
+}
+
+function chairRiseTargetsFor(exerciseKey) {
+  if (exerciseKey === 'partial_sit_to_stand') {
+    return {
+      standRatio: 0.11,
+      resetRatio: 0.045,
+      targetKneeAngleDegrees: 143,
+      resetKneeAngleDegrees: 125,
+      prompt: 'Rise partway, then sit back down slowly.',
+    };
+  }
+  if (exerciseKey === 'mini_knee_bends') {
+    return {
+      standRatio: 0.13,
+      resetRatio: 0.06,
+      targetKneeAngleDegrees: 150,
+      resetKneeAngleDegrees: 132,
+      prompt: 'Bend a little, then stand tall again.',
+    };
+  }
+  if (exerciseKey === 'knee_alignment_sit_to_stand') {
+    return {
+      standRatio: 0.16,
+      resetRatio: 0.07,
+      targetKneeAngleDegrees: 152,
+      resetKneeAngleDegrees: 132,
+      prompt: 'Stand slowly. Keep knees over toes.',
+    };
+  }
+  if (exerciseKey === 'slow_sit_to_stand') {
+    return {
+      standRatio: 0.16,
+      resetRatio: 0.07,
+      targetKneeAngleDegrees: 152,
+      resetKneeAngleDegrees: 132,
+      prompt: 'Stand tall, then sit down slowly.',
+    };
+  }
+  return {
+    standRatio: 0.16,
+    resetRatio: 0.07,
+    targetKneeAngleDegrees: 152,
+    resetKneeAngleDegrees: 132,
+    prompt: 'Stand tall, then sit back down.',
+  };
+}
+
+function chairRiseMetric(landmarks) {
+  const pose = landmarksFor(landmarks);
+  const leftKneeAngle = angleDegrees(pose.leftHip, pose.leftKnee, pose.leftAnkle);
+  const rightKneeAngle = angleDegrees(pose.rightHip, pose.rightKnee, pose.rightAnkle);
+  const kneeCenter = midpoint(pose.leftKnee, pose.rightKnee);
+  const ankleCenter = midpoint(pose.leftAnkle, pose.rightAnkle);
+  const hipLiftRatio = pose.hipCenter && kneeCenter
+    ? (kneeCenter.y - pose.hipCenter.y) / pose.bodyHeight
+    : null;
+  const kneeAngleDegrees = averageFinite([leftKneeAngle, rightKneeAngle]);
+  const footCenter = midpoint(pose.leftAnkle, pose.rightAnkle) || ankleCenter;
+
+  return {
+    available: Boolean(pose.hipCenter && kneeCenter && kneeAngleDegrees !== null),
+    hipLiftRatio: hipLiftRatio ?? 0,
+    kneeAngleDegrees: kneeAngleDegrees ?? 0,
+    hip: overlayPoint(pose.hipCenter),
+    knee: overlayPoint(kneeCenter),
+    foot: overlayPoint(footCenter),
+  };
+}
+
+function updateChairRiseGame(previousState, landmarks, timestampMs, recommendation = {}) {
+  const exerciseKey = recommendation.exerciseKey || recommendation.id || recommendation.arInputKey;
+  const metric = chairRiseMetric(landmarks);
+  const target = chairRiseTargetsFor(exerciseKey);
+  if (!metric.available) {
+    return {
+      ...previousState,
+      progress: 0,
+      prompt: 'Keep hips, knees, and feet visible.',
+      metrics: metric,
+      lastTimestampMs: timestampMs,
+    };
+  }
+
+  const liftProgress = clamp(metric.hipLiftRatio / target.standRatio);
+  const angleProgress = clamp((metric.kneeAngleDegrees - target.resetKneeAngleDegrees)
+    / (target.targetKneeAngleDegrees - target.resetKneeAngleDegrees));
+  const progress = Math.max(liftProgress, angleProgress);
+  const reached = metric.hipLiftRatio >= target.standRatio
+    || metric.kneeAngleDegrees >= target.targetKneeAngleDegrees;
+  const reset = metric.hipLiftRatio <= target.resetRatio
+    || metric.kneeAngleDegrees <= target.resetKneeAngleDegrees;
+  const fullyStanding = metric.hipLiftRatio >= target.standRatio;
+  const initialStandingObserved = previousState.initialStandingObserved
+    || (previousState.count === 0 && !previousState.armed && fullyStanding);
+  const midRisePrep = previousState.count === 0
+    && !previousState.armed
+    && !initialStandingObserved
+    && metric.hipLiftRatio > target.resetRatio
+    && metric.hipLiftRatio < target.standRatio
+    && progress >= 0.35;
+  const counted = previousState.armed && reached && !previousState.setComplete;
+  const countPatch = counted ? nextCountState(previousState, timestampMs) : {};
+  const hip = metric.hip || { x: 50, y: 52 };
+  const knee = metric.knee || hip;
+  const targetY = clamp(knee.y - 28 - progress * 24, 8, 78);
+
+  return {
+    ...previousState,
+    ...countPatch,
+    progress,
+    armed: counted ? false : previousState.armed || reset || midRisePrep,
+    initialStandingObserved,
+    target: { x: hip.x, y: targetY },
+    foot: metric.foot,
+    prompt: counted
+      ? 'Star reached. Now sit back down with control.'
+      : previousState.setComplete
+        ? `You completed the ${previousState.targetRepetitions}-rep set.`
+        : target.prompt,
+    metrics: {
+      ...metric,
+      targetKneeAngleDegrees: target.targetKneeAngleDegrees,
+      resetKneeAngleDegrees: target.resetKneeAngleDegrees,
+      targetHipLiftRatio: target.standRatio,
+    },
+    lastTimestampMs: timestampMs,
+  };
+}
+
+function updateStarGame(previousState, landmarks, timestampMs, recommendation = {}) {
+  const exerciseKey = recommendation.exerciseKey || recommendation.id || recommendation.arInputKey;
+  if (CHAIR_RISE_KEYS.has(exerciseKey)) {
+    return updateChairRiseGame(previousState, landmarks, timestampMs, recommendation);
+  }
+
   const metric = kneeExtensionMetric(landmarks);
   const target = ArExerciseGameConfig.starKneeExtension;
   if (!metric.available) {
@@ -313,7 +528,7 @@ function updateStarGame(previousState, landmarks, timestampMs) {
     prompt: counted
       ? 'Star reached. Smooth movement.'
       : previousState.setComplete
-        ? 'You completed the 10-rep set.'
+        ? `You completed the ${previousState.targetRepetitions}-rep set.`
         : 'Straighten your knee slowly.',
     metrics: {
       ...metric,
@@ -346,7 +561,7 @@ function balanceMetric(landmarks, exerciseKey) {
       apSeparation === null ? 0.5 : apSeparation / 0.12,
     ))
     : 0;
-  const wantsOneLeg = exerciseKey === 'one_leg_stance';
+  const wantsOneLeg = exerciseKey === 'one_leg_stance' || exerciseKey === 'supported_one_leg_stand';
   const stanceProgress = wantsOneLeg ? oneLegProgress : Math.max(tandemProgress, oneLegProgress * 0.8);
 
   return {
@@ -358,6 +573,8 @@ function balanceMetric(landmarks, exerciseKey) {
     lateralSeparation,
     apSeparation,
     verticalLiftRatio,
+    leftAnkle: overlayPoint(pose.leftAnkle),
+    rightAnkle: overlayPoint(pose.rightAnkle),
   };
 }
 
@@ -369,8 +586,87 @@ function centerSpeed(previousState, center, timestampMs) {
   return Math.hypot(center.x - previousCenter.x, center.y - previousCenter.y) / 100 / deltaSeconds;
 }
 
+function balanceModeForExercise(exerciseKey) {
+  if (WEIGHT_SHIFT_KEYS.has(exerciseKey)) return 'weight_shift';
+  if (WALKING_PATH_KEYS.has(exerciseKey)) return 'walking_path';
+  if (ANKLE_REP_KEYS.has(exerciseKey)) return 'ankle_reps';
+  return 'hold';
+}
+
+function butterflyTargetForMode(metric, mode, previousState) {
+  const center = metric.center || { x: 50, y: 50 };
+  if (mode === 'weight_shift') {
+    const side = previousState.activeSide === 'left' ? 'right' : 'left';
+    return {
+      x: clamp(center.x + (side === 'right' ? 20 : -20), 12, 88),
+      y: clamp(center.y - 18, 12, 74),
+    };
+  }
+  if (mode === 'walking_path') {
+    const direction = previousState.count % 2 === 0 ? 1 : -1;
+    return {
+      x: clamp(center.x + direction * 18, 12, 88),
+      y: clamp(center.y - 20 - (previousState.count % 3) * 5, 10, 74),
+    };
+  }
+  if (mode === 'ankle_reps') {
+    return {
+      x: clamp(center.x, 14, 86),
+      y: clamp(center.y - 32, 8, 70),
+    };
+  }
+  return {
+    x: clamp(center.x + Math.sin((previousState.count + 1) * 1.7) * 18, 12, 88),
+    y: clamp(center.y - 22 - Math.cos((previousState.count + 1) * 1.2) * 8, 10, 72),
+  };
+}
+
+function updateButterflyShiftGame(previousState, metric, timestampMs, mode, recommendation = {}) {
+  const baselineCenter = previousState.metrics?.baselineCenter || metric.center || { x: 50, y: 50 };
+  const offsetX = (metric.center?.x ?? baselineCenter.x) - baselineCenter.x;
+  const targetSide = previousState.activeSide === 'left' ? 'right' : 'left';
+  const shiftThreshold = mode === 'walking_path' ? 7 : 4;
+  const reached = targetSide === 'right'
+    ? offsetX >= shiftThreshold
+    : offsetX <= -shiftThreshold;
+  const returnedCenter = Math.abs(offsetX) <= 1.8;
+  const counted = previousState.armed && reached && !previousState.setComplete;
+  const countPatch = counted ? nextCountState(previousState, timestampMs) : {};
+  const exerciseKey = recommendation.exerciseKey || recommendation.id;
+  const action = mode === 'walking_path'
+    ? 'Take a small step toward the butterfly.'
+    : exerciseKey === 'tai_chi_weight_transfer'
+      ? 'Shift slowly, like pouring weight into one foot.'
+      : 'Shift weight gently without lifting your feet.';
+
+  return {
+    ...previousState,
+    ...countPatch,
+    progress: clamp(Math.abs(offsetX) / shiftThreshold),
+    armed: counted ? false : previousState.armed || returnedCenter,
+    activeSide: counted ? targetSide : previousState.activeSide,
+    target: butterflyTargetForMode(metric, mode, { ...previousState, activeSide: counted ? targetSide : previousState.activeSide }),
+    prompt: counted
+      ? 'Target reached. Return to center.'
+      : previousState.setComplete
+        ? `You completed the ${previousState.targetRepetitions}-rep set.`
+        : action,
+    metrics: {
+      ...metric,
+      baselineCenter,
+      center: metric.center,
+      offsetX,
+      mode,
+      stable: true,
+    },
+    lastTimestampMs: timestampMs,
+  };
+}
+
 function updateButterflyGame(previousState, landmarks, timestampMs, recommendation = {}) {
-  const metric = balanceMetric(landmarks, recommendation.exerciseKey || recommendation.arInputKey);
+  const exerciseKey = recommendation.exerciseKey || recommendation.id || recommendation.arInputKey;
+  const mode = balanceModeForExercise(exerciseKey);
+  const metric = balanceMetric(landmarks, exerciseKey);
   const target = ArExerciseGameConfig.butterflyBalance;
   if (!metric.available) {
     return {
@@ -383,41 +679,51 @@ function updateButterflyGame(previousState, landmarks, timestampMs, recommendati
     };
   }
 
+  if (mode === 'weight_shift' || mode === 'walking_path') {
+    return updateButterflyShiftGame(previousState, metric, timestampMs, mode, recommendation);
+  }
+
   const speed = centerSpeed(previousState, metric.center, timestampMs);
-  const stable = metric.stanceProgress >= 0.85 && speed <= target.maxCenterSpeedPerSecond;
+  const ankleRepReady = mode === 'ankle_reps' && speed <= target.maxCenterSpeedPerSecond;
+  const stable = mode === 'ankle_reps'
+    ? ankleRepReady
+    : metric.stanceProgress >= 0.85 && speed <= target.maxCenterSpeedPerSecond;
   const deltaMs = finite(previousState.lastTimestampMs)
     ? Math.max(timestampMs - previousState.lastTimestampMs, 0)
     : 0;
+  const targetHoldMs = previousState.targetHoldMs || target.targetHoldMs;
   const holdMs = stable && !previousState.setComplete
-    ? Math.min(target.targetHoldMs, previousState.holdMs + deltaMs)
+    ? Math.min(targetHoldMs, previousState.holdMs + deltaMs)
     : Math.max(0, previousState.holdMs - deltaMs * 0.7);
-  const reached = holdMs >= target.targetHoldMs;
+  const reached = holdMs >= targetHoldMs;
   const counted = reached && previousState.armed && !previousState.setComplete;
   const countPatch = counted ? nextCountState(previousState, timestampMs) : {};
-  const nextHoldMs = counted ? 0 : holdMs;
-  const center = metric.center || { x: 50, y: 50 };
+  const nextHoldMs = counted && mode !== 'hold' ? 0 : holdMs;
+  const resetReady = mode === 'ankle_reps'
+    ? !stable || nextHoldMs <= 300
+    : metric.stanceProgress < 0.45;
 
   return {
     ...previousState,
     ...countPatch,
-    progress: clamp(nextHoldMs / target.targetHoldMs),
+    progress: clamp(nextHoldMs / targetHoldMs),
     holdMs: nextHoldMs,
-    armed: counted ? false : previousState.armed || metric.stanceProgress < 0.45,
-    target: {
-      x: clamp(center.x + Math.sin((previousState.count + 1) * 1.7) * 18, 12, 88),
-      y: clamp(center.y - 22 - Math.cos((previousState.count + 1) * 1.2) * 8, 10, 72),
-    },
+    armed: counted ? false : previousState.armed || resetReady,
+    target: butterflyTargetForMode(metric, mode, previousState),
     prompt: counted
-      ? 'Butterfly reached. Keep breathing.'
+      ? mode === 'ankle_reps' ? 'Target reached. Lower slowly.' : 'Hold complete. Keep breathing.'
       : previousState.setComplete
-        ? 'You completed the 10-rep set.'
-        : 'Hold this balance position gently.',
+        ? `You completed the ${previousState.targetRepetitions}-rep set.`
+        : mode === 'ankle_reps'
+          ? 'Rise gently and stay tall for the butterfly.'
+          : 'Hold this balance position gently.',
     metrics: {
       ...metric,
       center: metric.center,
       centerSpeedPerSecond: speed,
       stable,
-      targetHoldMs: target.targetHoldMs,
+      mode,
+      targetHoldMs,
     },
     lastTimestampMs: timestampMs,
   };
@@ -429,14 +735,14 @@ export function updateArExerciseGame(previousState, {
   timestampMs = performance.now(),
 } = {}) {
   const gameType = previousState?.gameType || gameTypeForRecommendation(recommendation);
-  const state = previousState || createInitialArGameState(gameType);
+  const state = previousState || createInitialArGameState(gameType, recommendation);
   if (state.setComplete) return { ...state, lastTimestampMs: timestampMs };
 
   if (gameType === ArExerciseGameTypes.BubbleLegRaise) {
     return updateBubbleGame(state, landmarks, timestampMs);
   }
   if (gameType === ArExerciseGameTypes.StarKneeExtension) {
-    return updateStarGame(state, landmarks, timestampMs);
+    return updateStarGame(state, landmarks, timestampMs, recommendation);
   }
   if (gameType === ArExerciseGameTypes.ButterflyBalance) {
     return updateButterflyGame(state, landmarks, timestampMs, recommendation);

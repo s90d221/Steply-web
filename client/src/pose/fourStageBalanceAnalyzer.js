@@ -4,7 +4,9 @@ import {
   averageNumbers,
   calculateBodyCenter,
   calculateJointAngles,
+  calculatePelvisCenter,
   calculateTrunkLean,
+  calculateTrunkCenter,
   clamp,
   distance,
   landmarkMap,
@@ -31,6 +33,51 @@ export const DEFAULT_BALANCE_OPTIONS = {
   footMovementExitThreshold: 0.16,
   footMovementExitConfirmFrames: 3,
   handSupportRatioThreshold: 0.12,
+};
+
+const OfficialBalanceProtocolStatus = {
+  Waiting: 'waiting',
+  Holding: 'holding',
+  Completed: 'completed',
+  Stopped: 'stopped',
+};
+
+const OfficialBalanceStageStatus = {
+  Pending: 'pending',
+  Waiting: 'waiting',
+  Holding: 'holding',
+  Completed: 'completed',
+  Failed: 'failed',
+  NotAttempted: 'not_attempted',
+};
+
+const OfficialBalanceFailureMessages = {
+  feet_moved: 'Stop. The test ended because the feet moved or the stance changed before 10 seconds.',
+  support_used: 'Stop. The test ended because support was used during the timed hold.',
+  tracking_lost: 'Stop. The test ended because the stance could not be verified clearly.',
+};
+
+const OfficialBalanceStageGuidance = {
+  side_by_side: {
+    setup: 'Stand with your feet side by side. Keep your eyes open.',
+    holding: 'Ready, begin. Hold your feet still for 10 seconds.',
+    success: 'Stop. Side-by-side stand complete.',
+  },
+  semi_tandem: {
+    setup: 'Place the instep of one foot next to the big toe of the other foot.',
+    holding: 'Ready, begin. Hold your feet still for 10 seconds.',
+    success: 'Stop. Semi-tandem stand complete.',
+  },
+  tandem: {
+    setup: 'Place one foot directly in front of the other, heel touching toe.',
+    holding: 'Ready, begin. Hold your feet still for 10 seconds.',
+    success: 'Stop. Tandem stand complete.',
+  },
+  one_leg: {
+    setup: 'Stand on one foot. Keep your eyes open and do not use support.',
+    holding: 'Ready, begin. Hold one foot up for 10 seconds.',
+    success: 'Stop. One-leg stand complete.',
+  },
 };
 
 const LOWER_BODY_LANDMARKS = [
@@ -104,6 +151,10 @@ function mergeOptions(options = {}) {
 
 function finite(value) {
   return typeof value === 'number' && Number.isFinite(value);
+}
+
+function roundSeconds(value, digits = 2) {
+  return finite(value) ? Number(value.toFixed(digits)) : 0;
 }
 
 function safeTimestamp(frame, index) {
@@ -273,7 +324,12 @@ function extractFrameFeatures(frame, options) {
   const leftAnkle = visibleLandmark(points, PoseLandmarks.LeftAnkle, options.minVisibility);
   const rightAnkle = visibleLandmark(points, PoseLandmarks.RightAnkle, options.minVisibility);
   const jointAngles = frame.metrics?.jointAngles || calculateJointAngles(frame.landmarks, { minVisibility: options.minVisibility });
-  const bodyCenter = frame.metrics?.bodyCenter || calculateBodyCenter(frame.landmarks, { minVisibility: options.minVisibility });
+  const trunkCenter = calculateTrunkCenter(frame.landmarks, { minVisibility: options.minVisibility });
+  const pelvisCenter = calculatePelvisCenter(frame.landmarks, { minVisibility: options.minVisibility });
+  const bodyCenter = trunkCenter
+    || pelvisCenter
+    || frame.metrics?.bodyCenter
+    || calculateBodyCenter(frame.landmarks, { minVisibility: options.minVisibility });
   const trunkLean = frame.metrics?.trunkLean || calculateTrunkLean(frame.landmarks, { minVisibility: options.minVisibility });
 
   const lateralSeparation = bothFeetVisible ? Math.abs(leftFoot.x - rightFoot.x) : null;
@@ -295,6 +351,8 @@ function extractFrameFeatures(frame, options) {
     confidence: frame.confidence,
     lowerBodyVisible: lowerBodyVisible(points, options.minVisibility),
     bodyCenter,
+    trunkCenter,
+    pelvisCenter,
     trunkLean,
     jointAngles,
     footCenters: { left: leftFoot, right: rightFoot },
@@ -497,6 +555,20 @@ function angularMetric(samples, valueFor) {
   };
 }
 
+function baselineFootCenter(samples, foot) {
+  const firstTimestampMs = samples[0]?.timestampMs ?? null;
+  const baselineSamples = samples
+    .filter((sample) => sample.footCenters[foot])
+    .filter((sample) => (
+      firstTimestampMs === null
+      || sample.timestampMs - firstTimestampMs <= 800
+    ))
+    .slice(0, 5);
+  return averagePoint((baselineSamples.length ? baselineSamples : samples)
+    .map((sample) => sample.footCenters[foot])
+    .filter(Boolean));
+}
+
 function footMovementMetric(samples, stageId, options) {
   const first = samples.find((sample) => sample.footCenters.left || sample.footCenters.right);
   if (!first) {
@@ -547,7 +619,7 @@ function footMovementMetric(samples, stageId, options) {
   };
 
   for (const foot of feetToTrack) {
-    const baseline = first.footCenters[foot];
+    const baseline = baselineFootCenter(samples, foot);
     if (!baseline) continue;
     const distances = [];
     const mediolateralDistances = [];
@@ -728,16 +800,22 @@ function stageResult(stage, segment, features, options) {
   const dynamicEndMs = startedAtMs + options.dynamicAdjustmentSeconds * 1000;
   const dynamicSamples = samples.filter((sample) => sample.timestampMs <= dynamicEndMs);
   const staticSamples = samples.filter((sample) => sample.timestampMs > dynamicEndMs);
+  const dynamicAdjustment = windowMetrics(dynamicSamples, stage.id, options);
+  const staticHold = windowMetrics(staticSamples, stage.id, options);
+  const totalHold = windowMetrics(samples, stage.id, options);
+  const completedWithoutSupport = holdSeconds >= stage.targetHoldSeconds
+    && !totalHold.footMovement.exitObserved
+    && !totalHold.handSupport.possible;
 
   return {
     ...stage,
-    status: holdSeconds >= stage.targetHoldSeconds ? 'completed' : 'observed',
+    status: completedWithoutSupport ? 'completed' : 'observed',
     holdSeconds,
     startedAtMs,
     endedAtMs,
-    dynamicAdjustment: windowMetrics(dynamicSamples, stage.id, options),
-    staticHold: windowMetrics(staticSamples, stage.id, options),
-    totalHold: windowMetrics(samples, stage.id, options),
+    dynamicAdjustment,
+    staticHold,
+    totalHold,
   };
 }
 
@@ -801,14 +879,83 @@ export function analyzeFourStageBalanceSeries(seriesInput, optionsInput = {}) {
   };
 }
 
+function initialOfficialStageRecord(stage, status = OfficialBalanceStageStatus.Pending) {
+  return {
+    ...stage,
+    status,
+    holdSeconds: 0,
+    startedAtMs: null,
+    endedAtMs: null,
+    failureReason: null,
+    failureMessage: null,
+  };
+}
+
+function officialStageGuidance(stageId, key = 'setup') {
+  return OfficialBalanceStageGuidance[stageId]?.[key] || 'Hold the position for 10 seconds.';
+}
+
+function expectedStageConfidence(feature, stageId) {
+  return feature?.stanceScores?.[stageId] ?? 0;
+}
+
+function matchesExpectedStage(feature, stageId, options) {
+  return Boolean(
+    feature?.lowerBodyVisible
+      && expectedStageConfidence(feature, stageId) >= options.minStanceConfidence
+  );
+}
+
+function statusFromOfficialStage(record) {
+  if (record?.status === OfficialBalanceStageStatus.Completed) return 'completed';
+  if (
+    record?.status === OfficialBalanceStageStatus.Holding
+    || record?.status === OfficialBalanceStageStatus.Failed
+    || (record?.holdSeconds || 0) > 0
+  ) {
+    return 'observed';
+  }
+  return 'not_observed';
+}
+
+function alignBalanceResultToOfficialProtocol(balanceResult, officialProtocol) {
+  if (!officialProtocol?.stages?.length) return balanceResult;
+  const officialById = new Map(officialProtocol.stages.map((stage) => [stage.id, stage]));
+  const stages = balanceResult.stages.map((stage) => {
+    const official = officialById.get(stage.id);
+    if (!official) return stage;
+    return {
+      ...stage,
+      status: statusFromOfficialStage(official),
+      holdSeconds: roundSeconds(official.holdSeconds),
+      startedAtMs: official.startedAtMs,
+      endedAtMs: official.endedAtMs,
+      officialStatus: official.status,
+      officialFailureReason: official.failureReason,
+      officialFailureMessage: official.failureMessage,
+    };
+  });
+  return {
+    ...balanceResult,
+    stages,
+    stageById: Object.fromEntries(stages.map((stage) => [stage.id, stage])),
+    officialProtocol,
+    stateMachine: {
+      ...balanceResult.stateMachine,
+      officialProtocol,
+    },
+  };
+}
+
 function currentStageFromResult(balanceResult) {
   return [...balanceResult.stages].reverse().find((stage) => stage.status !== 'not_observed')
     || balanceResult.stages[0];
 }
 
 export class FourStageBalanceAnalyzer {
-  constructor({ durationSeconds = 40 } = {}) {
+  constructor({ durationSeconds = 60, options = {} } = {}) {
     this.durationSeconds = durationSeconds;
+    this.options = mergeOptions(options);
     this.reset();
   }
 
@@ -820,8 +967,11 @@ export class FourStageBalanceAnalyzer {
 
   addFrame(frame) {
     if (!this.startedAt) return this.latestState;
-    this.frames.push(frame);
-    this.balanceResult = analyzeFourStageBalanceSeries({ frames: this.frames });
+    const normalizedFrame = normalizeFrame(frame, this.frames.length);
+    const feature = extractFrameFeatures(normalizedFrame, this.options);
+    this.frames.push(normalizedFrame);
+    this.updateOfficialProtocol(feature);
+    this.balanceResult = analyzeFourStageBalanceSeries({ frames: this.frames }, this.options);
     this.latestState = this.stateFromResult(frame.timestampMs);
     return this.latestState;
   }
@@ -835,8 +985,13 @@ export class FourStageBalanceAnalyzer {
   }
 
   finishSession(completedAt = Date.now()) {
-    this.balanceResult = analyzeFourStageBalanceSeries({ frames: this.frames });
+    const officialProtocol = this.officialProtocolSnapshot(completedAt);
+    this.balanceResult = alignBalanceResultToOfficialProtocol(
+      analyzeFourStageBalanceSeries({ frames: this.frames }, this.options),
+      officialProtocol,
+    );
     const tandemHold = this.balanceResult.stageById.tandem?.holdSeconds ?? 0;
+    const completedCount = officialProtocol.stages.filter((stage) => stage.status === OfficialBalanceStageStatus.Completed).length;
     const totalStaticSamples = this.balanceResult.stages.reduce(
       (sum, stage) => sum + stage.staticHold.sampleCount,
       0,
@@ -852,7 +1007,10 @@ export class FourStageBalanceAnalyzer {
       recommendationLevel: RecommendationLevels.MeasurementOnly,
       stabilityScore: totalStaticSamples ? this.balanceResult.confidence : 0,
       balanceResult: this.balanceResult,
-      summaryMessage: '4-stage balance measurements captured without risk interpretation.',
+      officialProtocol,
+      summaryMessage: officialProtocol.status === OfficialBalanceProtocolStatus.Completed
+        ? '4-stage balance test completed using the official 10-second stage sequence.'
+        : `${completedCount}/4 balance stages completed before the official stop rule ended the test.`,
       startedAt: this.startedAt,
       completedAt,
     };
@@ -862,7 +1020,22 @@ export class FourStageBalanceAnalyzer {
     this.userId = null;
     this.startedAt = null;
     this.frames = [];
-    this.balanceResult = analyzeFourStageBalanceSeries({ frames: [] });
+    this.protocolStatus = OfficialBalanceProtocolStatus.Waiting;
+    this.currentStageIndex = 0;
+    this.protocolStages = FOUR_STAGE_BALANCE_STAGES.map((stage, index) => initialOfficialStageRecord(
+      stage,
+      index === 0 ? OfficialBalanceStageStatus.Waiting : OfficialBalanceStageStatus.Pending,
+    ));
+    this.protocolPendingStageId = null;
+    this.protocolPendingSinceMs = null;
+    this.protocolExitPendingSinceMs = null;
+    this.currentStageSamples = [];
+    this.protocolMessage = officialStageGuidance(FOUR_STAGE_BALANCE_STAGES[0].id, 'setup');
+    this.protocolFailureReason = null;
+    this.balanceResult = alignBalanceResultToOfficialProtocol(
+      analyzeFourStageBalanceSeries({ frames: [] }, this.options),
+      this.officialProtocolSnapshot(Date.now()),
+    );
     this.latestState = this.stateFromResult(Date.now());
   }
 
@@ -871,11 +1044,222 @@ export class FourStageBalanceAnalyzer {
     return clamp(Math.floor(Math.max(nowMs - start, 0) / 1000), 0, this.durationSeconds);
   }
 
+  activeStage() {
+    return FOUR_STAGE_BALANCE_STAGES[this.currentStageIndex] || null;
+  }
+
+  activeStageRecord() {
+    const stage = this.activeStage();
+    return stage ? this.protocolStages[this.currentStageIndex] : null;
+  }
+
+  beginCurrentStage(feature) {
+    const stage = this.activeStage();
+    const record = this.activeStageRecord();
+    if (!stage || !record) return;
+    record.status = OfficialBalanceStageStatus.Holding;
+    record.startedAtMs = feature.timestampMs;
+    record.endedAtMs = null;
+    record.holdSeconds = 0;
+    record.failureReason = null;
+    record.failureMessage = null;
+    this.protocolStatus = OfficialBalanceProtocolStatus.Holding;
+    this.currentStageSamples = [feature];
+    this.protocolExitPendingSinceMs = null;
+    this.protocolMessage = officialStageGuidance(stage.id, 'holding');
+  }
+
+  completeCurrentStage(completedAtMs) {
+    const stage = this.activeStage();
+    const record = this.activeStageRecord();
+    if (!stage || !record) return;
+    record.status = OfficialBalanceStageStatus.Completed;
+    record.holdSeconds = stage.targetHoldSeconds;
+    record.endedAtMs = record.startedAtMs + stage.targetHoldSeconds * 1000;
+    record.failureReason = null;
+    record.failureMessage = null;
+    this.currentStageIndex += 1;
+    this.currentStageSamples = [];
+    this.protocolPendingStageId = null;
+    this.protocolPendingSinceMs = null;
+    this.protocolExitPendingSinceMs = null;
+
+    if (this.currentStageIndex >= FOUR_STAGE_BALANCE_STAGES.length) {
+      this.protocolStatus = OfficialBalanceProtocolStatus.Completed;
+      this.protocolMessage = 'Stop. The 4-stage balance test is complete.';
+      return;
+    }
+
+    const nextStage = this.activeStage();
+    const nextRecord = this.activeStageRecord();
+    if (nextRecord) nextRecord.status = OfficialBalanceStageStatus.Waiting;
+    this.protocolStatus = OfficialBalanceProtocolStatus.Waiting;
+    this.protocolMessage = `${officialStageGuidance(stage.id, 'success')} Next: ${officialStageGuidance(nextStage.id, 'setup')}`;
+    if (finite(completedAtMs)) {
+      record.endedAtMs = Math.min(record.endedAtMs, completedAtMs);
+    }
+  }
+
+  stopOfficialProtocol(timestampMs, reason) {
+    const stage = this.activeStage();
+    const record = this.activeStageRecord();
+    const message = OfficialBalanceFailureMessages[reason] || OfficialBalanceFailureMessages.feet_moved;
+    if (record) {
+      const holdSeconds = record.startedAtMs !== null
+        ? (timestampMs - record.startedAtMs) / 1000
+        : 0;
+      record.status = OfficialBalanceStageStatus.Failed;
+      record.holdSeconds = roundSeconds(clamp(holdSeconds, 0, stage?.targetHoldSeconds || 10));
+      record.endedAtMs = timestampMs;
+      record.failureReason = reason;
+      record.failureMessage = message;
+    }
+    for (let index = this.currentStageIndex + 1; index < this.protocolStages.length; index += 1) {
+      this.protocolStages[index].status = OfficialBalanceStageStatus.NotAttempted;
+    }
+    this.protocolStatus = OfficialBalanceProtocolStatus.Stopped;
+    this.protocolFailureReason = reason;
+    this.protocolMessage = message;
+    this.currentStageSamples = [];
+    this.protocolPendingStageId = null;
+    this.protocolPendingSinceMs = null;
+    this.protocolExitPendingSinceMs = null;
+  }
+
+  updateOfficialProtocol(feature) {
+    if (
+      this.protocolStatus === OfficialBalanceProtocolStatus.Completed
+      || this.protocolStatus === OfficialBalanceProtocolStatus.Stopped
+    ) {
+      return;
+    }
+
+    const stage = this.activeStage();
+    const record = this.activeStageRecord();
+    if (!stage || !record) return;
+
+    const matchesStage = matchesExpectedStage(feature, stage.id, this.options);
+    const supportPossible = Boolean(feature.possibleHandSupport?.possible);
+
+    if (this.protocolStatus === OfficialBalanceProtocolStatus.Waiting) {
+      record.status = OfficialBalanceStageStatus.Waiting;
+      record.holdSeconds = 0;
+      if (supportPossible) {
+        this.protocolPendingStageId = null;
+        this.protocolPendingSinceMs = null;
+        this.protocolMessage = 'Let go of support before the timed hold starts.';
+        return;
+      }
+      if (!matchesStage) {
+        this.protocolPendingStageId = null;
+        this.protocolPendingSinceMs = null;
+        this.protocolMessage = officialStageGuidance(stage.id, 'setup');
+        return;
+      }
+      if (this.protocolPendingStageId !== stage.id) {
+        this.protocolPendingStageId = stage.id;
+        this.protocolPendingSinceMs = feature.timestampMs;
+      }
+      if (feature.timestampMs - this.protocolPendingSinceMs >= this.options.entryConfirmMs) {
+        this.beginCurrentStage(feature);
+      } else {
+        this.protocolMessage = `Hold still. ${officialStageGuidance(stage.id, 'setup')}`;
+      }
+      return;
+    }
+
+    if (this.protocolStatus !== OfficialBalanceProtocolStatus.Holding) return;
+
+    this.currentStageSamples.push(feature);
+    const holdSeconds = record.startedAtMs !== null ? (feature.timestampMs - record.startedAtMs) / 1000 : 0;
+    record.holdSeconds = roundSeconds(clamp(holdSeconds, 0, stage.targetHoldSeconds));
+    const targetEndMs = (record.startedAtMs ?? feature.timestampMs) + stage.targetHoldSeconds * 1000;
+    const samplesUntilTarget = this.currentStageSamples.filter((sample) => sample.timestampMs <= targetEndMs);
+    const targetMetrics = windowMetrics(samplesUntilTarget, stage.id, this.options);
+    const exitConfirmedBeforeTarget = this.protocolExitPendingSinceMs !== null
+      && this.protocolExitPendingSinceMs < targetEndMs
+      && targetEndMs - this.protocolExitPendingSinceMs >= this.options.exitConfirmMs;
+
+    if (
+      feature.timestampMs >= targetEndMs
+      && !targetMetrics.footMovement.exitObserved
+      && !targetMetrics.handSupport.possible
+      && !exitConfirmedBeforeTarget
+    ) {
+      this.completeCurrentStage(feature.timestampMs);
+      return;
+    }
+
+    if (targetMetrics.handSupport.possible || (supportPossible && feature.timestampMs < targetEndMs)) {
+      this.stopOfficialProtocol(feature.timestampMs, 'support_used');
+      return;
+    }
+    if (targetMetrics.footMovement.exitObserved) {
+      this.stopOfficialProtocol(feature.timestampMs, 'feet_moved');
+      return;
+    }
+
+    if (!matchesStage) {
+      if (this.protocolExitPendingSinceMs === null) {
+        this.protocolExitPendingSinceMs = feature.timestampMs;
+      }
+      if (feature.timestampMs - this.protocolExitPendingSinceMs >= this.options.exitConfirmMs) {
+        this.stopOfficialProtocol(feature.timestampMs, feature.lowerBodyVisible ? 'feet_moved' : 'tracking_lost');
+        return;
+      }
+    } else {
+      this.protocolExitPendingSinceMs = null;
+    }
+
+    this.protocolMessage = officialStageGuidance(stage.id, 'holding');
+  }
+
+  officialProtocolSnapshot(nowMs = Date.now()) {
+    const stages = this.protocolStages.map((stage, index) => {
+      const activeHolding = index === this.currentStageIndex
+        && stage.status === OfficialBalanceStageStatus.Holding
+        && stage.startedAtMs !== null
+        && this.protocolStatus === OfficialBalanceProtocolStatus.Holding;
+      const holdSeconds = activeHolding
+        ? clamp((nowMs - stage.startedAtMs) / 1000, 0, stage.targetHoldSeconds)
+        : stage.holdSeconds;
+      return {
+        ...stage,
+        holdSeconds: roundSeconds(holdSeconds),
+        remainingSeconds: roundSeconds(clamp(stage.targetHoldSeconds - holdSeconds, 0, stage.targetHoldSeconds)),
+        instruction: officialStageGuidance(stage.id, stage.status === OfficialBalanceStageStatus.Holding ? 'holding' : 'setup'),
+      };
+    });
+    const activeStage = this.activeStage();
+    const currentStage = activeStage ? stages[this.currentStageIndex] : stages.at(-1);
+    const completedCount = stages.filter((stage) => stage.status === OfficialBalanceStageStatus.Completed).length;
+    return {
+      status: this.protocolStatus,
+      currentStageId: currentStage?.id ?? null,
+      currentStageIndex: this.currentStageIndex,
+      currentStageOrder: currentStage?.order ?? null,
+      currentStageTitle: currentStage?.title ?? '4-Stage Balance',
+      targetHoldSeconds: currentStage?.targetHoldSeconds ?? 10,
+      completedCount,
+      totalStages: stages.length,
+      stopOnFailedStage: true,
+      shouldFinishSession: this.protocolStatus === OfficialBalanceProtocolStatus.Completed
+        || this.protocolStatus === OfficialBalanceProtocolStatus.Stopped,
+      failureReason: this.protocolFailureReason,
+      message: this.protocolMessage,
+      stages,
+    };
+  }
+
   stateFromResult(nowMs) {
-    const currentStage = currentStageFromResult(this.balanceResult);
-    const completedCount = this.balanceResult.stages.filter((stage) => stage.status === 'completed').length;
+    const officialProtocol = this.officialProtocolSnapshot(nowMs);
+    const alignedBalanceResult = alignBalanceResultToOfficialProtocol(this.balanceResult, officialProtocol);
+    const currentStage = officialProtocol.stages.find((stage) => stage.id === officialProtocol.currentStageId)
+      || currentStageFromResult(alignedBalanceResult);
+    const currentMetricsStage = alignedBalanceResult.stageById?.[currentStage?.id] || null;
     const currentHold = currentStage?.holdSeconds ?? 0;
-    const hasVisiblePose = this.balanceResult.frameCount > 0 && this.balanceResult.confidence > 0;
+    const hasVisiblePose = alignedBalanceResult.frameCount > 0 && alignedBalanceResult.confidence > 0;
+    const stopped = officialProtocol.status === OfficialBalanceProtocolStatus.Stopped;
 
     return {
       repetitionCount: Number(currentHold.toFixed(2)),
@@ -883,14 +1267,17 @@ export class FourStageBalanceAnalyzer {
       primaryLabel: `${currentStage?.title || 'Balance'} Hold`,
       elapsedSeconds: this.elapsedSeconds(nowMs),
       durationSeconds: this.durationSeconds,
-      confidence: this.balanceResult.confidence,
+      confidence: alignedBalanceResult.confidence,
       isFullBodyVisible: hasVisiblePose,
-      warningMessage: hasVisiblePose ? null : 'The camera has not found a full-body balance pose yet.',
-      postureMessage: `${completedCount}/4 balance stages completed or observed.`,
-      isArmUseSuspected: Boolean(currentStage?.totalHold.handSupport.possible),
+      warningMessage: stopped
+        ? officialProtocol.message
+        : hasVisiblePose ? null : 'The camera has not found a full-body balance pose yet.',
+      postureMessage: officialProtocol.message,
+      isArmUseSuspected: Boolean(currentMetricsStage?.totalHold?.handSupport?.possible),
       isStandingOrRising: hasVisiblePose,
-      phase: currentStage?.id || 'waiting',
-      balanceResult: this.balanceResult,
+      phase: officialProtocol.currentStageId || officialProtocol.status || 'waiting',
+      balanceProtocol: officialProtocol,
+      balanceResult: alignedBalanceResult,
     };
   }
 }

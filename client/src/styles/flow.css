@@ -6,8 +6,10 @@
   padding: 8px;
   border: var(--border-soft);
   border-radius: var(--radius-card);
-  background: var(--surface);
+  background: color-mix(in srgb, var(--glass-surface-strong) 84%, transparent);
   box-shadow: var(--shadow-card);
+  backdrop-filter: blur(18px) saturate(1.16);
+  -webkit-backdrop-filter: blur(18px) saturate(1.16);
   overflow: hidden;
 }
 
@@ -24,14 +26,23 @@
   padding: 10px 12px;
   text-align: left;
   color: var(--text-primary);
-  background: var(--surface);
+  background: color-mix(in srgb, var(--surface-strong) 74%, transparent);
   border: 1px solid color-mix(in srgb, var(--outline) 60%, transparent);
   border-radius: var(--radius-card);
-  transition: transform 180ms ease, background 180ms ease, box-shadow 180ms ease;
+  transition: transform 180ms ease, background 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
 }
 
-.journey-step:hover { transform: translateY(-1px); background: color-mix(in srgb, var(--primary-container) 34%, var(--surface)); }
-.journey-step--active { background: var(--primary-container); border-color: var(--primary); box-shadow: none; }
+.journey-step:hover {
+  transform: translateY(-1px);
+  background: color-mix(in srgb, var(--primary-container) 44%, white);
+  border-color: color-mix(in srgb, var(--primary) 26%, var(--outline));
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--primary) 10%, transparent);
+}
+.journey-step--active {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--primary-container) 88%, white), color-mix(in srgb, var(--primary-container) 62%, white));
+  border-color: color-mix(in srgb, var(--primary) 52%, var(--outline));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 12%, transparent);
+}
 .journey-step:disabled {
   cursor: default;
   opacity: 1;
@@ -47,10 +58,10 @@
   height: 46px;
   border-radius: 50%;
   color: var(--on-primary);
-  background: var(--primary);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--primary) 88%, white), var(--primary-dark));
   font-size: 20px;
   font-weight: 800;
-  box-shadow: none;
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--primary) 22%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.36);
 }
 
 .journey-step__body { display: grid; gap: 2px; }
@@ -77,8 +88,10 @@
   overflow: hidden;
   min-height: clamp(420px, 54vw, 720px);
   background:
-    radial-gradient(circle at 18% 12%, color-mix(in srgb, var(--secondary-container) 65%, transparent), transparent 30%),
-    linear-gradient(145deg, var(--surface), var(--surface-variant));
+    linear-gradient(color-mix(in srgb, var(--primary) 6%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--primary) 6%, transparent) 1px, transparent 1px),
+    linear-gradient(145deg, color-mix(in srgb, var(--surface-strong) 88%, var(--primary-container)), var(--surface-variant));
+  background-size: 38px 38px, 38px 38px, auto;
 }
 
 .remote-camera-frame {
@@ -88,7 +101,7 @@
   object-fit: contain;
   display: block;
   border-radius: 28px;
-  background: #1f2933;
+  background: #0E1D19;
 }
 
 .remote-camera-badge {
@@ -101,9 +114,11 @@
   max-width: calc(100% - 44px);
   padding: 10px 14px;
   border-radius: 999px;
-  background: var(--surface);
-  border: 1px solid var(--outline);
-  box-shadow: 0 12px 30px rgba(31, 41, 51, 0.14);
+  background: var(--glass-surface-strong);
+  border: 1px solid color-mix(in srgb, var(--primary) 18%, var(--outline));
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(14px) saturate(1.15);
+  -webkit-backdrop-filter: blur(14px) saturate(1.15);
   color: var(--primary);
   font-weight: 700;
   line-height: 1.25;
@@ -115,11 +130,11 @@
   height: 12px;
   border-radius: 50%;
   background: var(--warning);
-  box-shadow: 0 0 0 6px color-mix(in srgb, var(--warning) 18%, transparent);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--warning) 18%, transparent), 0 0 18px color-mix(in srgb, var(--warning) 28%, transparent);
   flex: 0 0 auto;
 }
 
 .remote-camera-dot--live {
   background: var(--success);
-  box-shadow: 0 0 0 6px color-mix(in srgb, var(--success) 18%, transparent);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--success) 18%, transparent), 0 0 20px color-mix(in srgb, var(--success) 38%, transparent);
 }

@@ -61,6 +61,7 @@ export function ArExerciseGame({
   recommendations = [],
   remoteCameraFrame,
   poseAnalysis,
+  onGameStateChange,
 }) {
   const playableRecommendations = useMemo(
     () => recommendations.filter((recommendation) => gameTypeForRecommendation(recommendation)),
@@ -69,7 +70,7 @@ export function ArExerciseGame({
   const [activeIndex, setActiveIndex] = useState(0);
   const activeRecommendation = playableRecommendations[activeIndex] || playableRecommendations[0] || null;
   const gameType = activeRecommendation ? gameTypeForRecommendation(activeRecommendation) : null;
-  const [gameState, setGameState] = useState(() => createInitialArGameState(gameType));
+  const [gameState, setGameState] = useState(() => createInitialArGameState(gameType, activeRecommendation));
   const [stageRef, stageSize] = useElementSize();
   const frameAspectRatio = poseAnalysis?.frameSize?.width && poseAnalysis?.frameSize?.height
     ? poseAnalysis.frameSize.width / poseAnalysis.frameSize.height
@@ -81,7 +82,7 @@ export function ArExerciseGame({
 
   useEffect(() => {
     if (!gameType) return;
-    setGameState(createInitialArGameState(gameType));
+    setGameState(createInitialArGameState(gameType, activeRecommendation));
   }, [gameType, activeRecommendation?.exerciseKey, activeRecommendation?.arInputKey]);
 
   useEffect(() => {
@@ -99,7 +100,7 @@ export function ArExerciseGame({
     if (!gameType || !activeRecommendation) return;
     const timestampMs = performance.now();
     setGameState((current) => updateArExerciseGame(
-      current?.gameType === gameType ? current : createInitialArGameState(gameType),
+      current?.gameType === gameType ? current : createInitialArGameState(gameType, activeRecommendation),
       {
         landmarks: poseAnalysis?.landmarks || [],
         recommendation: activeRecommendation,
@@ -112,8 +113,6 @@ export function ArExerciseGame({
     () => mediaRectForObjectFit(poseAnalysis?.frameSize, stageSize, 'contain'),
     [poseAnalysis?.frameSize, stageSize],
   );
-
-  if (!activeRecommendation || !gameType) return null;
 
   const target = gameState.target || { x: 50, y: 50 };
   const hasLivePose = Boolean(poseAnalysis?.landmarks?.length);
@@ -132,12 +131,49 @@ export function ArExerciseGame({
   const objectContent = gameType === ArExerciseGameTypes.ButterflyBalance
     ? <ButterflyObject />
     : gameObjectLabel(gameType);
-  const metricLabel = gameType === ArExerciseGameTypes.BubbleLegRaise
-    ? `${Math.round(gameState.metrics?.angleDegrees || 0)}°`
-    : gameType === ArExerciseGameTypes.StarKneeExtension
-      ? `${Math.round(gameState.metrics?.kneeAngleDegrees || 0)}°`
-      : `${(gameState.holdMs / 1000 || 0).toFixed(1)}s`;
-  const gameTitle = activeRecommendation.arGameName || ArExerciseGameLabels[gameType];
+  const configuredHoldSeconds = Number(activeRecommendation?.defaultHoldSec);
+  const timedHoldMode = gameType === ArExerciseGameTypes.ButterflyBalance
+    && Number.isFinite(configuredHoldSeconds)
+    && configuredHoldSeconds > 0
+    && (gameState.metrics?.mode || 'hold') === 'hold';
+  const targetHoldSeconds = timedHoldMode
+    ? Math.max(1, Math.round((gameState.targetHoldMs || configuredHoldSeconds * 1000) / 1000))
+    : 0;
+  const holdSeconds = timedHoldMode
+    ? Math.min(targetHoldSeconds, gameState.setComplete ? targetHoldSeconds : (gameState.holdMs || 0) / 1000)
+    : 0;
+  const holdSecondsText = holdSeconds.toFixed(1);
+  const holdProgressLabel = timedHoldMode ? `${holdSecondsText} / ${targetHoldSeconds}s` : null;
+  const metricLabel = !gameType
+    ? ''
+    : timedHoldMode
+      ? `${holdSecondsText}s`
+      : gameType === ArExerciseGameTypes.BubbleLegRaise
+        ? `${Math.round(gameState.metrics?.angleDegrees || 0)}°`
+        : gameType === ArExerciseGameTypes.StarKneeExtension
+          ? `${Math.round(gameState.metrics?.kneeAngleDegrees || 0)}°`
+          : gameState.metrics?.mode === 'weight_shift' || gameState.metrics?.mode === 'walking_path'
+            ? `${gameState.count}`
+            : `${(gameState.holdMs / 1000 || 0).toFixed(1)}s`;
+  const gameTitle = activeRecommendation?.arGameName || ArExerciseGameLabels[gameType] || 'AR Exercise';
+  const remainingCount = Math.max(0, gameState.targetRepetitions - gameState.count);
+
+  useEffect(() => {
+    if (!activeRecommendation || !gameType) return;
+    onGameStateChange?.({
+      ...gameState,
+      gameType,
+      gameTitle,
+      metricLabel,
+      isTimedHold: timedHoldMode,
+      holdSeconds,
+      targetHoldSeconds,
+      progressLabel: holdProgressLabel || `${gameState.count} / ${gameState.targetRepetitions}`,
+      recommendation: activeRecommendation,
+    });
+  }, [activeRecommendation, gameState, gameTitle, gameType, holdProgressLabel, holdSeconds, metricLabel, onGameStateChange, targetHoldSeconds, timedHoldMode]);
+
+  if (!activeRecommendation || !gameType) return null;
 
   return (
     <section className={`ar-game ar-game--${gameType}`} aria-label={gameTitle}>
@@ -147,8 +183,8 @@ export function ArExerciseGame({
           <h3>{gameTitle}</h3>
         </div>
         <div className={gameState.setComplete ? 'ar-game__counter ar-game__counter--complete' : 'ar-game__counter'}>
-          <span>{gameState.count}</span>
-          <small>/ {gameState.targetRepetitions}</small>
+          <span>{timedHoldMode ? Math.ceil(holdSeconds) : gameState.count}</span>
+          <small>{timedHoldMode ? `/ ${targetHoldSeconds}s` : `/ ${gameState.targetRepetitions}`}</small>
         </div>
       </div>
 
@@ -188,6 +224,10 @@ export function ArExerciseGame({
           {objectContent}
         </div>
         <div className="ar-game-target-ring" style={objectStyle} aria-hidden="true" />
+        <div className="ar-game-live-coach" aria-live="polite">
+          <strong>{gameState.setComplete ? 'Set complete' : gameState.prompt}</strong>
+          <span>{holdProgressLabel || `${gameState.count} / ${gameState.targetRepetitions}`}</span>
+        </div>
       </div>
 
       <div className="ar-game__footer">
@@ -200,12 +240,18 @@ export function ArExerciseGame({
         </div>
         <div className={gameState.setComplete ? 'ar-game-achievement ar-game-achievement--complete' : 'ar-game-achievement'}>
           <span>✓</span>
-          <strong>{gameState.setComplete ? 'Safe Steps Badge' : 'Reps to badge'}</strong>
-          <small>{gameState.setComplete ? 'You completed the set' : `${gameState.targetRepetitions - gameState.count} reps`}</small>
+          <strong>{gameState.setComplete ? 'Safe Steps Badge' : timedHoldMode ? 'Hold timer' : 'Reps to badge'}</strong>
+          <small>
+            {gameState.setComplete
+              ? 'You completed the set'
+              : timedHoldMode
+                ? `${Math.max(0, Math.ceil(targetHoldSeconds - holdSeconds))} sec left`
+                : `${remainingCount} reps`}
+          </small>
         </div>
         <SteplyButton
           className="ar-game__reset"
-          onClick={() => setGameState(createInitialArGameState(gameType))}
+          onClick={() => setGameState(createInitialArGameState(gameType, activeRecommendation))}
         >
           Restart set
         </SteplyButton>

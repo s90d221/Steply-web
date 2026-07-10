@@ -46,7 +46,12 @@ for (const targetDir of targetDirs) {
   for (const entry of fs.readdirSync(sourceDir)) {
     const from = path.join(sourceDir, entry);
     const to = path.join(targetDir, entry);
-    fs.cpSync(from, to, { recursive: true, force: true });
+    if (fs.statSync(from).isDirectory()) {
+      fs.rmSync(to, { recursive: true, force: true });
+      fs.cpSync(from, to, { recursive: true });
+    } else {
+      fs.copyFileSync(from, to);
+    }
   }
 
   const moduleWasm = path.join(targetDir, 'vision_wasm_module_internal.wasm');

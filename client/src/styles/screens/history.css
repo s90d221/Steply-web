@@ -74,7 +74,7 @@
   min-height: 32px;
   padding: 10px 14px;
   border-radius: 999px;
-  background: var(--surface-variant);
+  background: color-mix(in srgb, var(--surface-variant) 68%, white);
   color: var(--text-secondary);
   font-size: 18px;
   font-weight: 800;
@@ -82,7 +82,7 @@
 }
 
 .trend-improvement--up {
-  background: var(--primary-container);
+  background: color-mix(in srgb, var(--primary-container) 82%, white);
   color: var(--primary);
 }
 
@@ -112,8 +112,10 @@
   padding: 14px 16px;
   border: 1px solid var(--outline);
   border-radius: var(--radius-input);
-  background: var(--surface);
-  box-shadow: var(--shadow-card);
+  background: var(--glass-surface-strong);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(16px) saturate(1.16);
+  -webkit-backdrop-filter: blur(16px) saturate(1.16);
 }
 
 .history-chart-tooltip strong {
@@ -130,7 +132,7 @@
   display: grid;
   place-items: center;
   min-height: 360px;
-  border: 1px dashed var(--outline);
+  border: 1px dashed color-mix(in srgb, var(--outline) 78%, transparent);
   border-radius: var(--radius-card);
   color: var(--text-secondary);
   text-align: center;
@@ -143,8 +145,8 @@
   grid-template-columns: var(--distance-icon-size) minmax(0, 1fr);
   gap: 20px;
   align-items: center;
-  background: var(--distance-warning-bg);
-  border-color: color-mix(in srgb, var(--tertiary) 32%, var(--outline));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--distance-warning-bg) 92%, white), color-mix(in srgb, var(--distance-warning-bg) 72%, white));
+  border-color: color-mix(in srgb, var(--tertiary) 24%, var(--outline));
 }
 
 .history-achievement-card__icon {
@@ -154,7 +156,7 @@
   height: var(--distance-icon-size);
   border-radius: 50%;
   color: var(--on-primary);
-  background: var(--primary);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--primary) 88%, white), var(--primary-dark));
   font-size: 46px;
   font-weight: 900;
 }
@@ -183,7 +185,7 @@
   width: 64px;
   height: 64px;
   border-radius: 16px;
-  background: var(--primary-container);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--primary-container) 86%, white), color-mix(in srgb, var(--primary-container) 62%, white));
   color: var(--primary);
   font-size: 36px;
   line-height: 1;

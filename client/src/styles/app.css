@@ -10,3 +10,83 @@
 @import './screens/history.css';
 @import './screens/service.css';
 @import './responsive.css';
+
+button:not(.qr-link-modal__backdrop),
+.steply-button,
+.primary-nav__item,
+.senior-support-link,
+.context-option,
+.journey-step,
+.test-card,
+.analysis-test-tab,
+.exercise-recommendation-option,
+.ar-game-tab,
+.participant-list button,
+.queue-list button,
+.profile-sidebar__toggle {
+  border: 1px solid color-mix(in srgb, var(--primary) 28%, var(--outline)) !important;
+  background: color-mix(in srgb, var(--glass-surface-strong) 74%, transparent) !important;
+  color: var(--text-primary);
+  box-shadow: 0 12px 28px rgba(18, 54, 45, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.72) !important;
+  backdrop-filter: blur(18px) saturate(1.18);
+  -webkit-backdrop-filter: blur(18px) saturate(1.18);
+}
+
+button:not(.qr-link-modal__backdrop):hover:not(:disabled),
+.steply-button:hover:not(:disabled),
+.primary-nav__item:hover,
+.senior-support-link:hover,
+.context-option:hover,
+.journey-step:hover:not(:disabled),
+.test-card:hover,
+.analysis-test-tab:hover,
+.exercise-recommendation-option:hover:not(:disabled),
+.ar-game-tab:hover,
+.participant-list button:hover,
+.queue-list button:hover,
+.profile-sidebar__toggle:hover {
+  border-color: color-mix(in srgb, var(--primary) 48%, var(--outline)) !important;
+  background: color-mix(in srgb, var(--primary-container) 34%, var(--glass-surface-strong)) !important;
+  box-shadow: 0 16px 36px color-mix(in srgb, var(--primary) 14%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.82) !important;
+  filter: none;
+  transform: translateY(-1px);
+}
+
+.steply-button--primary,
+.primary-nav__item--active,
+.context-option--active,
+.journey-step--active,
+.test-card--selected,
+.analysis-test-tab--active,
+.exercise-recommendation-option--active,
+.ar-game-tab--active {
+  border-color: color-mix(in srgb, var(--primary) 58%, var(--outline)) !important;
+  background: color-mix(in srgb, var(--primary-container) 48%, var(--glass-surface-strong)) !important;
+  color: var(--primary-dark) !important;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 12%, transparent), 0 14px 34px color-mix(in srgb, var(--primary) 12%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.84) !important;
+}
+
+.steply-button:focus-visible,
+button:not(.qr-link-modal__backdrop):focus-visible {
+  outline: 0;
+  border-color: var(--primary) !important;
+  box-shadow: var(--focus-ring), 0 12px 28px color-mix(in srgb, var(--primary) 14%, transparent) !important;
+}
+
+.exercise-start-control {
+  border: 10px solid color-mix(in srgb, var(--primary) 56%, var(--outline)) !important;
+  background: color-mix(in srgb, var(--glass-surface-strong) 78%, transparent) !important;
+  color: var(--primary-dark) !important;
+}
+
+.exercise-start-control:not(:disabled):hover {
+  border-color: color-mix(in srgb, var(--primary) 72%, var(--outline)) !important;
+  background: color-mix(in srgb, var(--primary-container) 34%, var(--glass-surface-strong)) !important;
+}
+
+.steply-button:disabled,
+.steply-button[disabled],
+button:disabled {
+  transform: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.52) !important;
+}

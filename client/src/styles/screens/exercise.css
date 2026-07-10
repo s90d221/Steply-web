@@ -11,8 +11,9 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--distance-gap);
-  background: var(--tertiary-container);
-  border-color: color-mix(in srgb, var(--tertiary) 26%, var(--outline));
+  background:
+    linear-gradient(120deg, color-mix(in srgb, var(--tertiary-container) 76%, white), color-mix(in srgb, var(--surface-strong) 86%, var(--primary-container)));
+  border-color: color-mix(in srgb, var(--tertiary) 18%, var(--outline));
 }
 .recommendation-header h2 {
   max-width: 840px;
@@ -32,7 +33,7 @@
   flex: 0 0 auto;
   padding: 12px 18px;
   border-radius: var(--radius-button);
-  background: var(--surface);
+  background: var(--glass-surface-strong);
   color: var(--tertiary);
   font-size: var(--distance-font-small);
   font-weight: 700;
@@ -43,10 +44,11 @@
   display: grid;
   gap: var(--distance-gap);
   padding: var(--distance-panel-padding);
-  border: 1px solid var(--outline);
+  border: 1px solid color-mix(in srgb, var(--outline) 74%, transparent);
   border-radius: var(--radius-card);
-  background: var(--surface);
-  box-shadow: var(--shadow-card);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-strong) 88%, transparent), color-mix(in srgb, var(--primary-container) 14%, white));
+  box-shadow: var(--shadow-soft);
 }
 
 .ar-game__header {
@@ -69,8 +71,9 @@
   padding: 14px 18px;
   border-radius: var(--radius-button);
   color: var(--primary);
-  background: var(--primary-container);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--primary-container) 88%, white), color-mix(in srgb, var(--primary-container) 62%, white));
   font-weight: 800;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
 }
 
 .ar-game__counter span {
@@ -84,7 +87,7 @@
 
 .ar-game__counter--complete {
   color: var(--on-primary);
-  background: var(--primary);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 88%, white), var(--primary-dark));
 }
 
 .ar-game-tabs {
@@ -96,9 +99,9 @@
 .ar-game-tab {
   min-height: 64px;
   padding: 12px 14px;
-  border: 1px solid var(--outline);
+  border: 1px solid color-mix(in srgb, var(--outline) 76%, transparent);
   border-radius: var(--radius-button);
-  background: var(--surface-variant);
+  background: color-mix(in srgb, var(--surface-variant) 62%, white);
   color: var(--text-primary);
   font-size: var(--distance-font-small);
   font-weight: 800;
@@ -108,7 +111,7 @@
 .ar-game-tab--active {
   border-color: var(--primary);
   color: var(--primary);
-  background: var(--primary-container);
+  background: color-mix(in srgb, var(--primary-container) 78%, white);
 }
 
 .ar-game-stage {
@@ -119,12 +122,12 @@
   height: clamp(560px, 68vh, 860px);
   min-height: 0;
   overflow: hidden;
-  border: 1px solid var(--outline);
+  border: 1px solid color-mix(in srgb, var(--outline) 72%, transparent);
   border-radius: var(--radius-card);
   background:
-    linear-gradient(color-mix(in srgb, var(--primary) 10%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in srgb, var(--primary) 10%, transparent) 1px, transparent 1px),
-    #0b1410;
+    linear-gradient(color-mix(in srgb, var(--primary) 9%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--primary) 9%, transparent) 1px, transparent 1px),
+    #0D1C18;
   background-size: 42px 42px;
 }
 
@@ -139,14 +142,14 @@
 .ar-game-camera-frame {
   object-fit: contain;
   object-position: center center;
-  background: #0b1410;
+  background: #0D1C18;
 }
 
 .ar-game-camera-placeholder {
   background:
-    linear-gradient(color-mix(in srgb, var(--secondary) 14%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in srgb, var(--secondary) 14%, transparent) 1px, transparent 1px),
-    var(--surface-variant);
+    linear-gradient(color-mix(in srgb, var(--primary) 7%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--primary) 7%, transparent) 1px, transparent 1px),
+    linear-gradient(145deg, color-mix(in srgb, var(--surface-strong) 74%, var(--primary-container)), var(--surface-variant));
   background-size: 44px 44px;
 }
 
@@ -171,9 +174,10 @@
   z-index: 3;
   width: 138px;
   height: 138px;
-  border: 5px solid color-mix(in srgb, var(--primary) 72%, white);
+  border: 5px solid color-mix(in srgb, var(--primary) 76%, white);
   border-radius: 999px;
   opacity: 0.72;
+  box-shadow: 0 0 28px color-mix(in srgb, var(--primary) 34%, transparent);
 }
 
 .ar-game-object {
@@ -185,7 +189,7 @@
   line-height: 1;
   font-size: 92px;
   font-weight: 900;
-  filter: drop-shadow(0 12px 18px rgba(0, 0, 0, 0.32));
+  filter: drop-shadow(0 12px 18px rgba(0, 0, 0, 0.24));
   transition: left 80ms linear, top 80ms linear, transform 80ms linear;
 }
 
@@ -193,8 +197,10 @@
   border: 6px solid color-mix(in srgb, var(--primary) 65%, white);
   border-radius: 999px;
   color: transparent;
-  background: color-mix(in srgb, var(--primary-container) 72%, transparent);
-  box-shadow: inset -12px -16px 20px rgba(255, 255, 255, 0.45);
+  background:
+    radial-gradient(circle at 30% 24%, rgba(255, 255, 255, 0.86) 0 12%, transparent 13%),
+    color-mix(in srgb, var(--primary-container) 72%, transparent);
+  box-shadow: inset -12px -16px 20px rgba(255, 255, 255, 0.45), 0 0 34px color-mix(in srgb, var(--primary) 28%, transparent);
 }
 
 .ar-game-demo-path {
@@ -211,7 +217,7 @@
   height: 54px;
   border: 3px solid color-mix(in srgb, var(--primary) 48%, white);
   border-radius: 50%;
-  background: color-mix(in srgb, var(--primary-container) 56%, transparent);
+  background: color-mix(in srgb, var(--primary-container) 62%, transparent);
   opacity: 0.58;
 }
 
@@ -231,8 +237,8 @@
 }
 
 .ar-game-object--star {
-  color: #f7b500;
-  text-shadow: 0 4px 0 #8a5c00;
+  color: #F6D843;
+  text-shadow: 0 4px 0 #876400, 0 0 24px rgba(246, 216, 67, 0.34);
 }
 
 .ar-game-object--butterfly {
@@ -252,7 +258,7 @@
   width: 64px;
   height: 84px;
   border-radius: 38px 38px 20px 38px;
-  background: var(--secondary);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--primary) 72%, white), var(--secondary));
   transform-origin: center right;
   animation: butterflyWing 650ms ease-in-out infinite;
 }
@@ -260,7 +266,7 @@
 .ar-game-butterfly__wing--right {
   transform-origin: center left;
   border-radius: 38px 38px 38px 20px;
-  background: var(--tertiary);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 72%, white), var(--tertiary));
   animation-delay: 120ms;
 }
 
@@ -281,6 +287,45 @@
   animation: arGameBurst 420ms ease-out;
 }
 
+.ar-game-live-coach {
+  position: absolute;
+  left: 50%;
+  bottom: 22px;
+  z-index: 8;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  width: min(calc(100% - 32px), 880px);
+  padding: 18px 22px;
+  transform: translateX(-50%);
+  border: 2px solid color-mix(in srgb, var(--primary) 46%, white);
+  border-radius: var(--radius-card);
+  color: var(--distance-contrast-text);
+  background: color-mix(in srgb, var(--glass-surface-strong) 92%, transparent);
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(18px) saturate(1.18);
+  -webkit-backdrop-filter: blur(18px) saturate(1.18);
+}
+
+.ar-game-live-coach strong {
+  font-size: clamp(26px, 3vw, 42px);
+  line-height: 1.14;
+  font-weight: 950;
+}
+
+.ar-game-live-coach span {
+  min-width: 118px;
+  padding: 10px 14px;
+  border-radius: var(--radius-button);
+  color: var(--on-primary);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 88%, white), var(--primary-dark));
+  font-size: clamp(28px, 3.2vw, 48px);
+  font-weight: 950;
+  line-height: 1;
+  text-align: center;
+}
+
 @keyframes arGameBurst {
   0% { transform: translate(-50%, -50%) scale(0.8); }
   45% { transform: translate(-50%, -50%) scale(1.28); }
@@ -299,14 +344,14 @@
   height: 28px;
   overflow: hidden;
   border-radius: 999px;
-  background: var(--surface-variant);
+  background: color-mix(in srgb, var(--surface-variant) 78%, white);
 }
 
 .ar-game-progress span {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: var(--primary);
+  background: linear-gradient(90deg, var(--primary), color-mix(in srgb, var(--accent) 58%, var(--primary)));
   transition: width 80ms linear;
 }
 
@@ -319,7 +364,7 @@
   min-height: 92px;
   padding: 16px 20px;
   border-radius: var(--radius-card);
-  background: var(--primary-container);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--primary-container) 88%, white), color-mix(in srgb, var(--primary-container) 62%, white));
   min-width: 0;
   color: var(--distance-contrast-text);
   font-weight: 700;
@@ -348,9 +393,9 @@
   min-width: 250px;
   min-height: 92px;
   padding: 14px 16px;
-  border: 2px solid color-mix(in srgb, var(--tertiary) 28%, var(--outline));
+  border: 1px solid color-mix(in srgb, var(--tertiary) 24%, var(--outline));
   border-radius: var(--radius-card);
-  background: var(--distance-warning-bg);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--distance-warning-bg) 92%, white), color-mix(in srgb, var(--distance-warning-bg) 72%, white));
 }
 
 .ar-game-achievement span {
@@ -360,7 +405,7 @@
   width: 54px;
   height: 54px;
   color: var(--on-primary);
-  background: var(--primary);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--primary) 88%, white), var(--primary-dark));
   border-radius: 50%;
   font-size: 30px;
   font-weight: 900;
@@ -379,7 +424,7 @@
 }
 
 .ar-game-achievement--complete {
-  background: var(--distance-success-bg);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--distance-success-bg) 90%, white), color-mix(in srgb, var(--distance-success-bg) 70%, white));
   border-color: color-mix(in srgb, var(--primary) 34%, var(--outline));
 }
 
@@ -399,10 +444,12 @@
   gap: 10px;
   min-height: 0;
 }
-.exercise-card--complete { background: var(--primary-container); }
+.exercise-card--complete {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--primary-container) 88%, white), color-mix(in srgb, var(--primary-container) 62%, white));
+}
 .exercise-card--active {
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent);
+  box-shadow: var(--shadow-glow);
 }
 .exercise-card__topline { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .exercise-card__number {
@@ -412,14 +459,14 @@
   height: 52px;
   border-radius: 999px;
   color: var(--on-primary);
-  background: var(--primary);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--primary) 88%, white), var(--primary-dark));
   font-weight: 800;
   font-size: 22px;
 }
 .exercise-card__chip {
   padding: 8px 12px;
   border-radius: 999px;
-  background: var(--secondary-container);
+  background: color-mix(in srgb, var(--secondary-container) 78%, white);
   color: var(--secondary);
   font-weight: 700;
   font-size: 18px;
@@ -442,7 +489,7 @@
 .exercise-card__meta span {
   padding: 9px 10px;
   border-radius: var(--radius-input);
-  background: var(--surface-variant);
+  background: color-mix(in srgb, var(--surface-variant) 68%, white);
   color: var(--primary);
   font-weight: 700;
   font-size: 18px;
@@ -451,7 +498,7 @@
   align-self: end;
   padding: 10px;
   border-radius: var(--radius-notice);
-  background: var(--tertiary-container);
+  background: color-mix(in srgb, var(--tertiary-container) 78%, white);
   color: var(--tertiary);
   font-size: 18px;
   line-height: 1.3;
@@ -475,7 +522,7 @@
   background:
     linear-gradient(color-mix(in srgb, var(--primary) 10%, transparent) 1px, transparent 1px),
     linear-gradient(90deg, color-mix(in srgb, var(--primary) 10%, transparent) 1px, transparent 1px),
-    var(--surface);
+    color-mix(in srgb, var(--surface-strong) 82%, transparent);
   background-size: 42px 42px;
 }
 .ar-game-launch-card h3 {
@@ -520,6 +567,14 @@
   line-height: 1.08;
 }
 
+.exercise-recommendation-hero p {
+  margin-top: 12px;
+  color: var(--distance-contrast-muted);
+  font-size: clamp(22px, 2vw, 30px);
+  font-weight: 800;
+  line-height: 1.28;
+}
+
 .exercise-recommendation-options {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -535,9 +590,16 @@
   border: 1px solid color-mix(in srgb, var(--outline) 76%, var(--distance-contrast-text));
   border-radius: var(--radius-card);
   color: var(--distance-contrast-text);
-  background: var(--distance-contrast-surface);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--distance-contrast-surface) 94%, transparent), color-mix(in srgb, var(--primary-container) 16%, white));
   text-align: left;
   box-shadow: var(--shadow-card);
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease, background 160ms ease;
+}
+
+.exercise-recommendation-option:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--primary) 36%, var(--outline));
+  box-shadow: var(--shadow-soft);
 }
 
 .exercise-recommendation-option strong {
@@ -551,11 +613,18 @@
   font-weight: 850;
 }
 
+.exercise-recommendation-option small {
+  color: var(--distance-contrast-muted);
+  font-size: clamp(18px, 1.45vw, 22px);
+  font-weight: 760;
+  line-height: 1.28;
+}
+
 .exercise-recommendation-option--active {
   border-color: var(--primary);
-  background: var(--primary-container);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--primary-container) 88%, white), color-mix(in srgb, var(--primary-container) 62%, white));
   color: var(--primary-dark);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 18%, transparent);
+  box-shadow: var(--shadow-glow);
 }
 
 .exercise-recommendation-option:disabled {
@@ -636,6 +705,40 @@
   line-height: 1.4;
 }
 
+.exercise-easy-steps {
+  display: grid;
+  gap: 10px;
+}
+
+.exercise-easy-step {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border-radius: var(--radius-card);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--primary-container) 88%, white), color-mix(in srgb, var(--primary-container) 64%, white));
+}
+
+.exercise-easy-step span {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  color: var(--on-primary);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--primary) 88%, white), var(--primary-dark));
+  font-size: 24px;
+  font-weight: 950;
+}
+
+.exercise-easy-step strong {
+  color: var(--distance-contrast-text);
+  font-size: clamp(22px, 2vw, 30px);
+  font-weight: 950;
+  line-height: 1.14;
+}
+
 .exercise-detail-target {
   display: flex;
   align-items: baseline;
@@ -644,7 +747,7 @@
   padding: 10px 14px;
   border-radius: var(--radius-button);
   color: var(--tertiary);
-  background: var(--tertiary-container);
+  background: color-mix(in srgb, var(--tertiary-container) 82%, white);
   font-weight: 800;
 }
 
@@ -658,10 +761,20 @@
   padding: 12px;
   border-radius: var(--radius-notice);
   color: var(--tertiary);
-  background: var(--distance-warning-bg);
+  background: color-mix(in srgb, var(--distance-warning-bg) 86%, white);
   font-size: 18px;
   font-weight: 750;
   line-height: 1.35;
+}
+
+.exercise-detail-watch {
+  padding: 12px;
+  border-radius: var(--radius-notice);
+  color: var(--primary-dark);
+  background: color-mix(in srgb, var(--primary-container) 76%, white);
+  font-size: clamp(20px, 1.6vw, 26px);
+  font-weight: 900;
+  line-height: 1.22;
 }
 
 .exercise-status-card {
@@ -669,7 +782,7 @@
 }
 
 .exercise-status-card h3 {
-  font-size: 25px;
+  font-size: clamp(26px, 2.2vw, 34px);
   line-height: 1.2;
 }
 
@@ -702,8 +815,8 @@
   overflow: hidden;
   border: var(--border-soft);
   border-radius: var(--radius-card);
-  background: var(--surface);
-  box-shadow: var(--shadow-card);
+  background: var(--glass-surface-strong);
+  box-shadow: var(--shadow-soft);
 }
 
 .exercise-main-zone > .ar-game {
@@ -724,7 +837,11 @@
   margin: 0;
   border: 0;
   border-radius: inherit;
-  background: var(--surface-variant);
+  background:
+    linear-gradient(color-mix(in srgb, var(--primary) 6%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--primary) 6%, transparent) 1px, transparent 1px),
+    linear-gradient(145deg, color-mix(in srgb, var(--surface-strong) 72%, var(--primary-container)), var(--surface-variant));
+  background-size: 40px 40px, 40px 40px, auto;
 }
 
 .exercise-main-zone .ar-game-camera-frame {
@@ -744,8 +861,11 @@
   padding: 24px;
   border-radius: var(--radius-card);
   color: var(--distance-contrast-text);
-  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  background: color-mix(in srgb, var(--glass-surface-strong) 92%, transparent);
   box-shadow: var(--shadow-soft);
+  border: 1px solid color-mix(in srgb, var(--primary) 16%, var(--glass-border));
+  backdrop-filter: blur(18px) saturate(1.16);
+  -webkit-backdrop-filter: blur(18px) saturate(1.16);
 }
 
 .exercise-launch-message h3 {
@@ -775,8 +895,10 @@
   border: 10px solid color-mix(in srgb, var(--primary) 74%, white);
   border-radius: 50%;
   color: var(--primary);
-  background: color-mix(in srgb, var(--surface) 90%, transparent);
+  background: color-mix(in srgb, var(--glass-surface-strong) 92%, transparent);
   box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(14px) saturate(1.16);
+  -webkit-backdrop-filter: blur(14px) saturate(1.16);
   font-weight: 900;
 }
 
@@ -809,17 +931,18 @@
   max-width: 320px;
   aspect-ratio: 1;
   padding: 24px;
-  border: 12px solid color-mix(in srgb, var(--primary) 72%, var(--secondary));
+  border: 12px solid color-mix(in srgb, var(--primary) 78%, var(--secondary));
   border-radius: 50%;
   color: var(--primary);
-  background: var(--surface);
+  background: linear-gradient(180deg, var(--surface-strong), color-mix(in srgb, var(--primary-container) 20%, white));
   box-shadow: var(--shadow-soft);
   font-weight: 900;
 }
 
 .exercise-start-control:not(:disabled):hover {
   transform: translateY(-1px);
-  background: var(--primary-container);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--primary-container) 82%, white), color-mix(in srgb, var(--surface-strong) 76%, var(--primary-container)));
+  box-shadow: var(--shadow-glow);
 }
 
 .exercise-start-control:disabled {
@@ -864,6 +987,26 @@
 
   .exercise-actions {
     grid-template-columns: 1fr;
+  }
+
+  .ar-game-live-coach {
+    grid-template-columns: 1fr;
+    justify-items: start;
+    bottom: 12px;
+    padding: 14px;
+  }
+
+  .ar-game-live-coach span {
+    min-width: 0;
+  }
+
+  .exercise-easy-step {
+    grid-template-columns: 38px minmax(0, 1fr);
+  }
+
+  .exercise-easy-step span {
+    width: 38px;
+    height: 38px;
   }
 }
 

@@ -1,29 +1,35 @@
 :root {
   color-scheme: light;
-  --primary: #2F6F62;
+  --primary: #18BFA6;
   --on-primary: #FFFFFF;
-  --primary-dark: #24584E;
-  --primary-container: #D7ECE5;
-  --secondary: #496A9A;
-  --secondary-container: #DCE7F7;
-  --tertiary: #8A5B18;
-  --tertiary-container: #FFE2B6;
-  --accent: #8A5B18;
-  --background: #F7F9F6;
-  --surface: #FFFFFF;
-  --surface-variant: #E3EAE6;
-  --text-primary: #17211D;
-  --text-secondary: #4F5F58;
-  --outline: #B7C2BC;
-  --success: #2F6F62;
-  --warning: #8A5B18;
+  --primary-dark: #087765;
+  --primary-container: #DDF8F0;
+  --secondary: #4F7F98;
+  --secondary-container: #E9F5FF;
+  --tertiary: #A06F00;
+  --tertiary-container: #FFF6CF;
+  --accent: #C8DC3E;
+  --background: #F6FFFB;
+  --surface: rgba(255, 255, 255, 0.86);
+  --surface-strong: #FFFFFF;
+  --surface-variant: #EEF8F4;
+  --glass-surface: rgba(255, 255, 255, 0.68);
+  --glass-surface-strong: rgba(255, 255, 255, 0.84);
+  --glass-border: rgba(255, 255, 255, 0.72);
+  --text-primary: #10241F;
+  --text-secondary: #526A63;
+  --outline: #C6D8D2;
+  --success: #13A88E;
+  --warning: #9A7108;
   --error: #BA1A1A;
   --error-container: #FFDAD6;
-  --shadow-soft: 0 8px 22px rgba(23, 33, 29, 0.08);
-  --shadow-card: 0 1px 3px rgba(23, 33, 29, 0.08);
-  --border-soft: 1px solid var(--outline);
+  --shadow-card: 0 12px 34px rgba(18, 54, 45, 0.08), 0 1px 0 rgba(255, 255, 255, 0.86) inset;
+  --shadow-soft: 0 18px 50px rgba(18, 54, 45, 0.12), 0 0 0 1px rgba(255, 255, 255, 0.54) inset;
+  --shadow-glow: 0 0 0 1px color-mix(in srgb, var(--primary) 28%, transparent), 0 16px 38px color-mix(in srgb, var(--primary) 22%, transparent);
+  --focus-ring: 0 0 0 4px color-mix(in srgb, var(--primary) 24%, transparent);
+  --border-soft: 1px solid color-mix(in srgb, var(--outline) 72%, white);
   --radius-card: 8px;
-  --radius-button: 14px;
+  --radius-button: 16px;
   --radius-input: 12px;
   --radius-notice: 8px;
   --rail-width: 336px;
@@ -40,15 +46,15 @@
   --distance-control-min: 72px;
   --distance-icon-size: 84px;
   --distance-stage-min: 620px;
-  --distance-contrast-bg: #F2F7F4;
+  --distance-contrast-bg: #F3FFFA;
   --distance-contrast-surface: #FFFFFF;
-  --distance-contrast-panel: #E8F3EE;
-  --distance-contrast-text: #0B1410;
-  --distance-contrast-muted: #263A32;
-  --distance-live-bg: rgba(5, 18, 14, 0.9);
+  --distance-contrast-panel: #E5F8F1;
+  --distance-contrast-text: #081A15;
+  --distance-contrast-muted: #29463D;
+  --distance-live-bg: rgba(6, 24, 19, 0.88);
   --distance-live-text: #F7FFFB;
-  --distance-success-bg: #CDEBDD;
-  --distance-warning-bg: #FFF0C9;
+  --distance-success-bg: #D7F8EC;
+  --distance-warning-bg: #FFF6CF;
 }
 
 * { box-sizing: border-box; }
@@ -60,11 +66,15 @@ body {
   min-width: 320px;
   min-height: 100vh;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background: var(--background);
+  background:
+    linear-gradient(115deg, rgba(255, 255, 255, 0.94) 0%, rgba(235, 255, 247, 0.9) 42%, rgba(248, 251, 250, 0.96) 100%),
+    repeating-linear-gradient(135deg, rgba(24, 191, 166, 0.045) 0 1px, transparent 1px 42px);
   color: var(--text-primary);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 }
 
-button, input, textarea, select { font: inherit; }
+button, input, textarea, select { font: inherit; color: inherit; }
 
 button { cursor: pointer; }
 
@@ -77,6 +87,9 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
   --background: var(--distance-contrast-bg);
   --surface: var(--distance-contrast-surface);
   --surface-variant: var(--distance-contrast-panel);
+  --glass-surface: var(--distance-contrast-surface);
+  --glass-surface-strong: var(--distance-contrast-surface);
+  --glass-border: color-mix(in srgb, var(--outline) 74%, var(--distance-contrast-text));
   --text-primary: var(--distance-contrast-text);
   --text-secondary: var(--distance-contrast-muted);
   --outline: #4D6259;
@@ -87,27 +100,33 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
-    --primary: #A8D8CA;
-    --on-primary: #08201A;
-    --primary-dark: #A8D8CA;
-    --primary-container: #1A554B;
-    --secondary: #B4C7E8;
-    --secondary-container: #253D63;
-    --tertiary: #F6C77B;
-    --tertiary-container: #5B3C0E;
-    --accent: #F6C77B;
-    --background: #111916;
-    --surface: #18211D;
-    --surface-variant: #3E4A45;
-    --text-primary: #E4ECE7;
-    --text-secondary: #C3CCC6;
-    --outline: #7F8B85;
-    --success: #A8D8CA;
-    --warning: #F6C77B;
+    --primary: #87E6D3;
+    --on-primary: #05231D;
+    --primary-dark: #A5F5E4;
+    --primary-container: #174A41;
+    --secondary: #B4D7EA;
+    --secondary-container: #233F4F;
+    --tertiary: #F5D978;
+    --tertiary-container: #4E4210;
+    --accent: #E6F276;
+    --background: #0D1714;
+    --surface: rgba(21, 34, 30, 0.88);
+    --surface-strong: #18231F;
+    --surface-variant: #263B35;
+    --glass-surface: rgba(24, 35, 31, 0.72);
+    --glass-surface-strong: rgba(25, 39, 34, 0.9);
+    --glass-border: rgba(201, 255, 238, 0.16);
+    --text-primary: #EAF7F2;
+    --text-secondary: #BFD0CA;
+    --outline: #61756E;
+    --success: #87E6D3;
+    --warning: #F5D978;
     --error: #FFB4AB;
     --error-container: #690005;
-    --shadow-soft: 0 8px 22px rgba(0, 0, 0, 0.32);
-    --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.24);
+    --shadow-soft: 0 18px 48px rgba(0, 0, 0, 0.38);
+    --shadow-card: 0 12px 32px rgba(0, 0, 0, 0.28);
+    --shadow-glow: 0 0 0 1px color-mix(in srgb, var(--primary) 32%, transparent), 0 16px 38px color-mix(in srgb, var(--primary) 16%, transparent);
+    --focus-ring: 0 0 0 4px color-mix(in srgb, var(--primary) 28%, transparent);
     --distance-contrast-bg: #0F1714;
     --distance-contrast-surface: #F7FFFB;
     --distance-contrast-panel: #DCEBE5;
@@ -123,6 +142,9 @@ button:disabled { cursor: not-allowed; opacity: 0.62; }
     --background: var(--distance-contrast-bg);
     --surface: var(--distance-contrast-surface);
     --surface-variant: var(--distance-contrast-panel);
+    --glass-surface: var(--distance-contrast-surface);
+    --glass-surface-strong: var(--distance-contrast-surface);
+    --glass-border: color-mix(in srgb, var(--outline) 88%, var(--distance-contrast-text));
     --text-primary: var(--distance-contrast-text);
     --text-secondary: var(--distance-contrast-muted);
     --outline: #2C433A;

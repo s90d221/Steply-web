@@ -41,9 +41,10 @@
   min-height: 620px;
   padding: 18px;
   color: var(--text-primary);
-  background: var(--surface);
-  border-color: var(--outline);
-  box-shadow: var(--shadow-card);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-strong) 88%, transparent), color-mix(in srgb, var(--surface-variant) 34%, white));
+  border-color: color-mix(in srgb, var(--outline) 74%, transparent);
+  box-shadow: var(--shadow-soft);
 }
 
 .arena-card--guided {
@@ -89,14 +90,15 @@
   align-content: center;
   min-height: 72px;
   padding: 12px 14px;
-  border: 1px solid var(--outline);
+  border: 1px solid color-mix(in srgb, var(--outline) 78%, transparent);
   border-radius: var(--radius-button);
-  background: var(--surface);
+  background: color-mix(in srgb, var(--surface-strong) 76%, transparent);
   color: var(--text-primary);
   font-size: var(--distance-font-small);
   font-weight: 700;
   line-height: 1.25;
   cursor: pointer;
+  transition: transform 160ms ease, background 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
 }
 
 .analysis-test-tab strong,
@@ -106,14 +108,16 @@
 
 .analysis-test-tab:hover {
   border-color: var(--primary);
-  background: color-mix(in srgb, var(--primary-container) 45%, transparent);
+  background: color-mix(in srgb, var(--primary-container) 52%, white);
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--primary) 10%, transparent);
+  transform: translateY(-1px);
 }
 
 .analysis-test-tab--active {
   color: var(--primary);
-  background: var(--primary-container);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--primary-container) 88%, white), color-mix(in srgb, var(--primary-container) 62%, white));
   border-color: var(--primary);
-  box-shadow: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 12%, transparent);
 }
 
 /* Stage */
@@ -128,10 +132,11 @@
   border: 1px solid var(--outline);
   border-radius: var(--radius-card);
   background:
-    linear-gradient(color-mix(in srgb, var(--primary) 9%, transparent) 1px, transparent 1px),
-    linear-gradient(90deg, color-mix(in srgb, var(--primary) 9%, transparent) 1px, transparent 1px),
-    var(--surface-variant);
+    linear-gradient(color-mix(in srgb, var(--primary) 7%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--primary) 7%, transparent) 1px, transparent 1px),
+    linear-gradient(145deg, color-mix(in srgb, var(--surface-strong) 72%, var(--primary-container)), var(--surface-variant));
   background-size: 34px 34px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.68);
 }
 
 .arena-stage--camera {
@@ -144,13 +149,17 @@
   min-height: var(--distance-stage-min);
   margin: 0;
   border-radius: var(--radius-card);
-  background: var(--surface-variant);
+  background:
+    linear-gradient(color-mix(in srgb, var(--primary) 6%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--primary) 6%, transparent) 1px, transparent 1px),
+    linear-gradient(145deg, color-mix(in srgb, var(--surface-strong) 72%, var(--primary-container)), var(--surface-variant));
+  background-size: 40px 40px, 40px 40px, auto;
 }
 
 .stage-grid {
   position: absolute;
   inset: 34px;
-  border: 1px solid color-mix(in srgb, var(--primary) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary) 14%, transparent);
   border-radius: var(--radius-card);
 }
 
@@ -158,7 +167,7 @@
   position: absolute;
   width: 230px;
   height: 230px;
-  border: 2px solid color-mix(in srgb, var(--primary) 20%, transparent);
+  border: 2px solid color-mix(in srgb, var(--primary) 18%, transparent);
   border-radius: 50%;
   animation: stagePulse 2.4s ease-in-out infinite;
 }
@@ -212,7 +221,7 @@
   inset: 0;
   display: grid;
   place-items: center;
-  background: #0a1720;
+  background: #0D1C18;
 }
 
 .remote-camera-frame {
@@ -283,7 +292,7 @@
   min-width: 170px;
   padding: 10px 12px;
   border: 1px solid rgba(255, 255, 255, 0.22);
-  border-radius: 8px;
+  border-radius: var(--radius-notice);
   color: white;
   background: rgba(14, 24, 38, 0.78);
   box-shadow: var(--shadow-soft);
@@ -348,9 +357,12 @@
   width: min(860px, calc(100% - 56px));
   padding: 22px 28px;
   color: var(--distance-live-text);
-  background: var(--distance-live-bg);
+  background: color-mix(in srgb, var(--distance-live-bg) 86%, transparent);
   border-radius: var(--radius-button);
   box-shadow: var(--shadow-soft);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(16px) saturate(1.18);
+  -webkit-backdrop-filter: blur(16px) saturate(1.18);
   transform: translateX(-50%);
 }
 
@@ -378,7 +390,8 @@
 .movement-guide-card {
   min-height: 560px;
   color: var(--text-primary);
-  background: var(--surface);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-strong) 88%, transparent), color-mix(in srgb, var(--primary-container) 18%, white));
 }
 
 .movement-guide-card h3 {
@@ -397,7 +410,9 @@
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--outline) 58%, transparent);
   border-radius: var(--radius-card);
-  background: #fff;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-strong) 94%, transparent), color-mix(in srgb, var(--primary-container) 28%, white));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
 }
 
 .movement-guide-image {
@@ -433,7 +448,7 @@
   width: 28px;
   height: 28px;
   color: var(--on-primary);
-  background: var(--primary);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--primary) 88%, white), var(--primary-dark));
   border-radius: 7px;
   font-size: 18px;
 }
@@ -441,7 +456,8 @@
 .movement-guide-tip {
   padding: 14px;
   border-radius: var(--radius-notice);
-  background: var(--primary-container);
+  background: color-mix(in srgb, var(--primary-container) 74%, white);
+  border: 1px solid color-mix(in srgb, var(--primary) 14%, transparent);
 }
 
 .movement-guide-tip strong {
@@ -464,7 +480,7 @@
   padding: 14px;
   border: 1px solid color-mix(in srgb, var(--primary) 20%, var(--outline));
   border-radius: var(--radius-notice);
-  background: var(--surface-variant);
+  background: color-mix(in srgb, var(--primary-container) 30%, white);
 }
 
 .movement-setup-guide strong {
@@ -513,7 +529,7 @@
   margin: 18px auto 0;
   padding: 18px 20px;
   color: var(--text-primary);
-  background: var(--primary-container);
+  background: color-mix(in srgb, var(--primary-container) 76%, white);
   border: 1px solid color-mix(in srgb, var(--primary) 18%, var(--outline));
   border-radius: var(--radius-notice);
   font-size: 15px;
@@ -527,7 +543,7 @@
   margin: 0;
   padding: 20px 24px;
   color: var(--distance-contrast-text);
-  background: var(--distance-success-bg);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--distance-success-bg) 88%, white), color-mix(in srgb, var(--distance-success-bg) 68%, white));
   font-size: var(--distance-font-body);
   text-align: left;
 }
@@ -538,7 +554,8 @@
   width: 100%;
   padding: 22px;
   color: var(--text-primary);
-  background: var(--surface);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-strong) 88%, transparent), color-mix(in srgb, var(--primary-container) 18%, white));
 }
 
 .setup-guide-card__header {
@@ -563,7 +580,7 @@
   color: var(--primary);
   border: 1px solid color-mix(in srgb, var(--primary) 24%, var(--outline));
   border-radius: 50%;
-  background: var(--primary-container);
+  background: color-mix(in srgb, var(--primary-container) 76%, white);
   font-size: 34px;
   font-weight: 800;
   line-height: 1;
@@ -577,7 +594,7 @@
 
 .setup-countdown--ready {
   color: var(--on-primary);
-  background: var(--primary);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--primary) 88%, white), var(--primary-dark));
 }
 
 .setup-countdown--ready span {
@@ -602,7 +619,7 @@
   color: var(--text-primary);
   border: 1px solid color-mix(in srgb, var(--outline) 70%, transparent);
   border-radius: var(--radius-notice);
-  background: var(--surface-variant);
+  background: color-mix(in srgb, var(--surface-variant) 60%, white);
   font-size: 18px;
   font-weight: 700;
 }
@@ -637,7 +654,7 @@
 
 .setup-warning--active {
   color: var(--text-primary);
-  background: var(--primary-container);
+  background: color-mix(in srgb, var(--primary-container) 78%, white);
 }
 
 .setup-image-actions {
@@ -708,7 +725,7 @@
 .feedback-stack li {
   padding: 12px 14px;
   color: var(--text-primary);
-  background: var(--surface-variant);
+  background: color-mix(in srgb, var(--surface-variant) 62%, white);
   border-radius: var(--radius-notice);
   font-weight: 600;
 }
@@ -769,7 +786,7 @@
   width: min(100%, 320px);
   aspect-ratio: 1;
   padding: 12px;
-  background: conic-gradient(var(--primary) 0deg, var(--secondary) var(--timer-deg), var(--surface-variant) var(--timer-deg));
+  background: conic-gradient(var(--primary) 0deg, color-mix(in srgb, var(--accent) 72%, var(--primary)) var(--timer-deg), color-mix(in srgb, var(--surface-variant) 82%, white) var(--timer-deg));
   border-radius: 50%;
   box-shadow: var(--shadow-soft);
   animation: none;
@@ -793,8 +810,9 @@
   width: 100%;
   height: 100%;
   color: var(--primary);
-  background: var(--surface);
+  background: linear-gradient(180deg, var(--surface-strong), color-mix(in srgb, var(--primary-container) 22%, white));
   border-radius: 50%;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.84);
 }
 
 .timer-circle__value {

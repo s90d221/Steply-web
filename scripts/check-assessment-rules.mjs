@@ -67,12 +67,19 @@ function balanceStage(id, holdSeconds, totalHold = balanceWindow()) {
   };
 }
 
-function balanceResult({ tandemHold = 10, tandemWindow = balanceWindow(), confidence = 0.92 } = {}) {
+function balanceResult({
+  sideBySideHold = 10,
+  semiTandemHold = 10,
+  tandemHold = 10,
+  oneLegHold = 10,
+  tandemWindow = balanceWindow(),
+  confidence = 0.92,
+} = {}) {
   const stages = [
-    balanceStage('side_by_side', 10),
-    balanceStage('semi_tandem', 10),
+    balanceStage('side_by_side', sideBySideHold),
+    balanceStage('semi_tandem', semiTandemHold),
     balanceStage('tandem', tandemHold, tandemWindow),
-    balanceStage('one_leg', 8),
+    balanceStage('one_leg', oneLegHold),
   ];
   return {
     testType: 'four_stage_balance',
@@ -94,6 +101,9 @@ function chairResult({
   trunkLeanPeak = 8,
   kneeVelocity = 60,
   armAssist = false,
+  kneeValgus = false,
+  weightShift = false,
+  incompleteStand = false,
 } = {}) {
   return {
     testType: 'chair_stand',
@@ -106,6 +116,8 @@ function chairResult({
       testType: 'chair_stand',
       repetitionCount: reps,
       armUseDisqualified: armAssist,
+      incompleteStandAttemptDetected: incompleteStand,
+      failedStandAttemptCount: incompleteStand ? 1 : 0,
       confidence,
       repetitions: [],
       aggregate: {
@@ -122,6 +134,24 @@ function chairResult({
           angleMeanDegrees: trunkLeanPeak * 0.7,
           angleMaxDegrees: trunkLeanPeak,
           scoreMean: 0.5,
+        },
+        kneeValgus: {
+          scoreMean: kneeValgus ? 0.72 : 0.08,
+          observedFrameCount: kneeValgus ? 4 : 0,
+          availableFrameCount: 8,
+          observed: kneeValgus,
+        },
+        weightShiftAsymmetry: {
+          scoreMean: weightShift ? 0.7 : 0.08,
+          maxNormalizedOffset: weightShift ? 0.42 : 0.1,
+          observedFrameCount: weightShift ? 4 : 0,
+          availableFrameCount: 8,
+          observed: weightShift,
+        },
+        functionalCompletion: {
+          incompleteStandAttemptDetected: incompleteStand,
+          failedStandAttemptCount: incompleteStand ? 1 : 0,
+          halfwayStandObservationCount: incompleteStand ? 3 : 0,
         },
         symmetryScoreMean: 0.9,
       },
@@ -181,6 +211,21 @@ try {
   assert.equal(tandemUnder10.failedCriteria[0].criterion, 'tandemHoldUnder10Seconds');
   assert.equal(tandemUnder10.fallRiskLevel, FallRiskLevels.Moderate);
 
+  const earlyBalanceFailure = buildAssessmentResult({
+    result: balanceResult({ sideBySideHold: 6.5, semiTandemHold: 7, tandemHold: 0 }),
+    profile,
+  });
+  assert.equal(earlyBalanceFailure.testFlags.needsSupervisedBalanceProgram, true);
+  assert.equal(earlyBalanceFailure.fallRiskLevel, FallRiskLevels.NeedsReview);
+
+  const oneLegOnlyFailure = buildAssessmentResult({
+    result: balanceResult({ tandemHold: 10, oneLegHold: 7.5 }),
+    profile,
+  });
+  assert.equal(oneLegOnlyFailure.testFlags.oneLegOnlyFailure, true);
+  assert.equal(oneLegOnlyFailure.primaryWeakness, WeaknessIds.HipAbductorMediolateralControl);
+  assert.ok(oneLegOnlyFailure.recommendedExercises.some((exercise) => exercise.id === 'supported_one_leg_stand'));
+
   const chairBelowThreshold = buildAssessmentResult({
     result: chairResult({ reps: 9 }),
     profile,
@@ -229,6 +274,22 @@ try {
   });
   assert.equal(trunkLeanChair.primaryWeakness, WeaknessIds.HipExtensorGluteStrength);
   assert.ok(trunkLeanChair.recommendedExercises.some((exercise) => exercise.id === 'sit_to_stand_practice'));
+
+  const kneeValgusChair = buildAssessmentResult({
+    result: chairResult({ reps: 12, trunkLeanPeak: 8, kneeVelocity: 62, kneeValgus: true }),
+    profile,
+  });
+  assert.equal(kneeValgusChair.testFlags.kneeValgusOrInwardCollapse, true);
+  assert.equal(kneeValgusChair.primaryWeakness, WeaknessIds.HipAbductorMediolateralControl);
+  assert.ok(kneeValgusChair.recommendedExercises.some((exercise) => exercise.id === 'knee_alignment_sit_to_stand'));
+
+  const incompleteStandChair = buildAssessmentResult({
+    result: chairResult({ reps: 6, trunkLeanPeak: 10, kneeVelocity: 58, incompleteStand: true }),
+    profile,
+  });
+  assert.equal(incompleteStandChair.testFlags.incompleteStandAttemptDetected, true);
+  assert.equal(incompleteStandChair.recommendedExercises[0].id, 'elevated_sit_to_stand');
+  assert.ok(incompleteStandChair.recommendedExercises.some((exercise) => exercise.id === 'partial_sit_to_stand'));
 
   const slowTurn = buildAssessmentResult({
     result: tugResult({ totalTimeSec: 10.8, turnDurationSec: 4.2 }),

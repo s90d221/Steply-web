@@ -51,6 +51,8 @@
   .history-chart-grid { grid-template-columns: 1fr; }
   .feedback-result-card,
   .feedback-list { grid-template-columns: 1fr; }
+  .result-report-item { grid-template-columns: 1fr; gap: 10px; }
+  .result-report-item__label { justify-self: start; }
   .result-actions { grid-template-columns: 1fr; }
   .recommendation-header { flex-direction: column; align-items: flex-start; }
   .ar-game__footer { grid-template-columns: 1fr; }

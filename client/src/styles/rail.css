@@ -46,7 +46,7 @@
   border: var(--border-soft);
   border-radius: 50%;
   color: var(--primary);
-  background: var(--surface);
+  background: var(--glass-surface-strong);
   box-shadow: var(--shadow-card);
   font-size: 22px;
   font-weight: 800;
@@ -128,12 +128,13 @@
   height: 44px;
   border: var(--border-soft);
   border-radius: 50%;
-  background: var(--surface);
+  background: var(--glass-surface-strong);
+  box-shadow: var(--shadow-card);
 }
 
 .status-dot--waiting {
   background: var(--warning);
-  box-shadow: 0 0 0 5px color-mix(in srgb, var(--warning) 18%, transparent);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--warning) 18%, transparent), 0 0 18px color-mix(in srgb, var(--warning) 30%, transparent);
 }
 
 .card-heading-row {
@@ -149,8 +150,8 @@
   width: min(100%, 260px);
   margin: 0 auto;
   border-radius: var(--radius-card);
-  border: 8px solid var(--surface);
-  box-shadow: var(--shadow-card);
+  border: 8px solid var(--surface-strong);
+  box-shadow: var(--shadow-soft);
 }
 
 .qr-placeholder {
@@ -164,7 +165,7 @@
   color: color-mix(in srgb, var(--primary) 52%, transparent);
   font-weight: 800;
   font-size: 30px;
-  background: color-mix(in srgb, var(--surface) 68%, transparent);
+  background: color-mix(in srgb, var(--primary-container) 48%, white);
 }
 
 .qr-payload-box {
@@ -173,8 +174,8 @@
   overflow: auto;
   padding: 12px;
   border-radius: var(--radius-input);
-  background: var(--surface);
-  border: 1px solid var(--outline);
+  background: color-mix(in srgb, var(--surface-strong) 78%, transparent);
+  border: 1px solid color-mix(in srgb, var(--outline) 72%, transparent);
   color: var(--text-primary);
   font-size: 13px;
   line-height: 1.45;
@@ -188,8 +189,9 @@
   border-radius: 50%;
   color: var(--on-primary);
   font-weight: 800;
-  background: var(--primary);
-  box-shadow: none;
+  background:
+    linear-gradient(150deg, color-mix(in srgb, var(--primary) 84%, white), var(--primary-dark));
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--primary) 20%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.36);
 }
 
 .profile-avatar--large { width: 64px; height: 64px; font-size: 24px; }
@@ -207,7 +209,7 @@
   padding: 12px;
   border: 1px solid color-mix(in srgb, var(--outline) 62%, transparent);
   border-radius: var(--radius-input);
-  background: var(--surface);
+  background: color-mix(in srgb, var(--surface-strong) 76%, transparent);
 }
 
 .profile-facts dt {
@@ -261,7 +263,7 @@
   gap: 0.35rem;
   padding: 0.8rem 0.9rem;
   border-radius: var(--radius-input);
-  background: var(--surface-variant);
+  background: color-mix(in srgb, var(--primary-container) 34%, var(--surface-strong));
   border: 1px solid color-mix(in srgb, var(--outline) 52%, transparent);
 }
 

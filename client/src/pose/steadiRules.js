@@ -74,7 +74,7 @@ export function normalizeSteadiGender(gender) {
     || normalized.includes('female')
     || normalized.includes('woman')
     || normalized.includes('women')
-    || normalized.includes('여')
+    || normalized.includes('\uC5EC')
   ) {
     return 'female';
   }
@@ -84,7 +84,7 @@ export function normalizeSteadiGender(gender) {
     || normalized.includes('male')
     || normalized.includes('man')
     || normalized.includes('men')
-    || normalized.includes('남')
+    || normalized.includes('\uB0A8')
   ) {
     return 'male';
   }

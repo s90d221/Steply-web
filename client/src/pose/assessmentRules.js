@@ -177,6 +177,42 @@ export const AssessmentExerciseLibrary = {
     contraindicationNote: 'Use a wider stance if tandem stance feels too difficult today.',
     progressionRule: 'Increase hold time by two seconds after two steady sessions.',
   },
+  weight_shift_drill: {
+    id: 'weight_shift_drill',
+    name: 'Supported Weight Shift',
+    title: 'Supported Weight Shift',
+    targetWeakness: WeaknessIds.BalanceControl,
+    category: 'balance',
+    difficulty: 'easy',
+    requiresChairSupport: true,
+    defaultReps: 8,
+    defaultSets: 1,
+    defaultHoldSec: 0,
+    arGameName: 'Butterfly Balance',
+    arInputKey: 'balance_retraining',
+    seniorInstruction: 'Hold support and slowly shift weight left and right without lifting the feet.',
+    safetyInstruction: 'Keep a chair, counter, or rail under your hands and move only a small distance.',
+    contraindicationNote: 'Use seated practice if shifting weight feels unsafe today.',
+    progressionRule: 'Reduce hand pressure only after the shift feels steady for two sessions.',
+  },
+  tai_chi_weight_transfer: {
+    id: 'tai_chi_weight_transfer',
+    name: 'Tai Chi-Style Weight Transfer',
+    title: 'Tai Chi-Style Weight Transfer',
+    targetWeakness: WeaknessIds.BalanceControl,
+    category: 'balance',
+    difficulty: 'standard',
+    requiresChairSupport: true,
+    defaultReps: 6,
+    defaultSets: 1,
+    defaultHoldSec: 0,
+    arGameName: 'Balance Bridge',
+    arInputKey: 'balance_retraining',
+    seniorInstruction: 'Shift weight slowly from one foot to the other with support nearby.',
+    safetyInstruction: 'Keep the movement small and stop before you feel unsteady.',
+    contraindicationNote: 'Use supported weight shift instead if balance felt poor today.',
+    progressionRule: 'Add arm motion only after the feet and trunk stay controlled.',
+  },
   heel_toe_walking: {
     id: 'heel_toe_walking',
     name: 'Heel-Toe Walking',
@@ -206,7 +242,7 @@ export const AssessmentExerciseLibrary = {
     defaultReps: 10,
     defaultSets: 1,
     defaultHoldSec: 0,
-    arGameName: 'Side Leg Bubble Pop',
+    arGameName: 'Side Leg Target Reach',
     arInputKey: 'side_leg_raise',
     seniorInstruction: 'Hold support and lift one leg gently out to the side, then lower with control.',
     safetyInstruction: 'Keep your trunk tall and keep support within reach.',
@@ -224,7 +260,7 @@ export const AssessmentExerciseLibrary = {
     defaultReps: 8,
     defaultSets: 1,
     defaultHoldSec: 0,
-    arGameName: 'Side Leg Bubble Pop',
+    arGameName: 'Side Leg Target Reach',
     arInputKey: 'side_leg_raise',
     seniorInstruction: 'Take small sideways steps along a counter or rail.',
     safetyInstruction: 'Keep your feet from crossing and keep one hand near support.',
@@ -266,6 +302,60 @@ export const AssessmentExerciseLibrary = {
     safetyInstruction: 'Place the chair against a wall and use support if needed.',
     contraindicationNote: 'Stop if knee, hip, chest pain, or dizziness appears.',
     progressionRule: 'Add one repetition when the set feels smooth for two sessions.',
+  },
+  elevated_sit_to_stand: {
+    id: 'elevated_sit_to_stand',
+    name: 'Elevated Sit-to-Stand',
+    title: 'Elevated Sit-to-Stand',
+    targetWeakness: WeaknessIds.LowerBodyEndurance,
+    category: 'strength',
+    difficulty: 'easy',
+    requiresChairSupport: true,
+    defaultReps: 5,
+    defaultSets: 1,
+    defaultHoldSec: 0,
+    arGameName: 'Chair Rise Climb',
+    arInputKey: 'sit_to_stand',
+    seniorInstruction: 'Use a slightly higher firm chair and stand up with even pressure through both feet.',
+    safetyInstruction: 'Keep the chair against a wall and keep support within reach.',
+    contraindicationNote: 'Avoid low chairs if standing required arm support today.',
+    progressionRule: 'Lower the chair height only when 2 sets of 10 are smooth and steady.',
+  },
+  partial_sit_to_stand: {
+    id: 'partial_sit_to_stand',
+    name: 'Partial Sit-to-Stand with Support',
+    title: 'Partial Sit-to-Stand',
+    targetWeakness: WeaknessIds.LowerBodyEndurance,
+    category: 'strength',
+    difficulty: 'easy',
+    requiresChairSupport: true,
+    defaultReps: 5,
+    defaultSets: 1,
+    defaultHoldSec: 0,
+    arGameName: 'Chair Rise Climb',
+    arInputKey: 'sit_to_stand',
+    seniorInstruction: 'Start from a higher chair and rise only partway, then sit back down with control.',
+    safetyInstruction: 'Keep support close and use a small range that feels steady.',
+    contraindicationNote: 'Use caregiver or professional supervision if a full stand was not reached today.',
+    progressionRule: 'Increase range before adding repetitions.',
+  },
+  knee_alignment_sit_to_stand: {
+    id: 'knee_alignment_sit_to_stand',
+    name: 'Knee-Over-Toe Sit-to-Stand',
+    title: 'Knee-Over-Toe Sit-to-Stand',
+    targetWeakness: WeaknessIds.HipAbductorMediolateralControl,
+    category: 'strength',
+    difficulty: 'easy',
+    requiresChairSupport: true,
+    defaultReps: 5,
+    defaultSets: 1,
+    defaultHoldSec: 0,
+    arGameName: 'Chair Rise Climb',
+    arInputKey: 'sit_to_stand',
+    seniorInstruction: 'Stand and sit slowly while keeping both knees pointing over the toes.',
+    safetyInstruction: 'Use a stable chair and make the range smaller if the knees drift inward.',
+    contraindicationNote: 'Stop if knee or hip pain appears.',
+    progressionRule: 'Add repetitions only after knee alignment stays steady.',
   },
   knee_extension: {
     id: 'knee_extension',
@@ -417,21 +507,27 @@ const WeaknessExerciseMap = {
   [WeaknessIds.AnkleStrategyProprioception]: [
     'heel_raises',
     'toe_raises',
+    'weight_shift_drill',
     'supported_tandem_stand',
     'heel_toe_walking',
   ],
   [WeaknessIds.HipAbductorMediolateralControl]: [
     'side_hip_strengthening',
-    'sideways_walking',
+    'knee_alignment_sit_to_stand',
     'supported_one_leg_stand',
+    'sideways_walking',
   ],
   [WeaknessIds.BalanceControl]: [
     'supported_tandem_stand',
+    'weight_shift_drill',
+    'tai_chi_weight_transfer',
     'supported_one_leg_stand',
     'heel_toe_walking',
   ],
   [WeaknessIds.LowerBodyEndurance]: [
     'sit_to_stand_practice',
+    'elevated_sit_to_stand',
+    'partial_sit_to_stand',
     'knee_extension',
     'sit_to_stand_ladder',
   ],
@@ -680,12 +776,21 @@ function buildBalanceAssessment(result = {}, { config = AssessmentRuleConfig } =
     : null;
   const confidenceScore = firstFinite(balanceResult?.confidence, result.confidence, 0);
   const trackingQualityScore = trackingQualityFrom(result, balanceResult) ?? confidenceScore;
+  const tandemCutoff = config.clinicalThresholds.tandemHoldSeconds;
+  const sideBySideHold = finiteNumber(sideBySide?.holdSeconds);
+  const semiTandemHold = finiteNumber(semiTandem?.holdSeconds);
+  const tandemHoldRaw = finiteNumber(tandem?.holdSeconds ?? result.primaryValue);
+  const oneLegHold = finiteNumber(oneLeg?.holdSeconds);
+  const sideBySideUnder10 = sideBySideHold !== null && sideBySideHold < tandemCutoff;
+  const semiTandemUnder10 = semiTandemHold !== null && semiTandemHold < tandemCutoff;
+  const earlyStageUnder10 = sideBySideUnder10 || semiTandemUnder10;
+  const oneLegUnder10 = oneLegHold !== null && oneLegHold < tandemCutoff;
 
   const rawMetrics = {
-    sideBySideHoldSec: roundOrNull(sideBySide?.holdSeconds),
-    semiTandemHoldSec: roundOrNull(semiTandem?.holdSeconds),
-    tandemHoldSec: roundOrNull(tandem?.holdSeconds ?? result.primaryValue),
-    singleLegHoldSec: roundOrNull(oneLeg?.holdSeconds),
+    sideBySideHoldSec: roundOrNull(sideBySideHold),
+    semiTandemHoldSec: roundOrNull(semiTandemHold),
+    tandemHoldSec: roundOrNull(tandemHoldRaw),
+    singleLegHoldSec: roundOrNull(oneLegHold),
     trunkSwayAP: roundOrNull(apSway, 4),
     trunkSwayML: roundOrNull(mlSway, 4),
     earlySwayFirst4Sec: roundOrNull(earlySwayFirst4Sec, 4),
@@ -694,6 +799,10 @@ function buildBalanceAssessment(result = {}, { config = AssessmentRuleConfig } =
     handSupportDetected,
     stepOutDetected,
     pelvisDropOrLateralShift,
+    sideBySideUnder10,
+    semiTandemUnder10,
+    earlyStageUnder10,
+    oneLegUnder10,
     confidenceScore: roundOrNull(confidenceScore, 3),
     trackingQualityScore: roundOrNull(trackingQualityScore, 3),
   };
@@ -715,11 +824,32 @@ function buildBalanceAssessment(result = {}, { config = AssessmentRuleConfig } =
   }
 
   const tandemHold = finiteNumber(rawMetrics.tandemHoldSec);
-  const tandemCutoff = config.clinicalThresholds.tandemHoldSeconds;
   const tandemUnder10 = tandemHold !== null && tandemHold < tandemCutoff;
+  const oneLegOnlyFailure = !tandemUnder10 && !stepOutDetected && oneLegUnder10;
   const stageNotCompleted = tandemUnder10 || stepOutDetected || tandem?.status === 'observed';
   const weaknessScores = emptyWeaknessScores();
   const failedCriteria = [];
+
+  if (sideBySideUnder10) {
+    failedCriteria.push(failedCriterion(
+      AssessmentTypes.FourStageBalance,
+      'sideBySideHoldUnder10Seconds',
+      sideBySideHold,
+      tandemCutoff,
+      { clinicalCutoff: true },
+    ));
+    mergeScore(weaknessScores, WeaknessIds.BalanceControl, scoreBelow(sideBySideHold, tandemCutoff, 0.72, 0.95));
+  }
+  if (semiTandemUnder10) {
+    failedCriteria.push(failedCriterion(
+      AssessmentTypes.FourStageBalance,
+      'semiTandemHoldUnder10Seconds',
+      semiTandemHold,
+      tandemCutoff,
+      { clinicalCutoff: true },
+    ));
+    mergeScore(weaknessScores, WeaknessIds.BalanceControl, scoreBelow(semiTandemHold, tandemCutoff, 0.66, 0.92));
+  }
 
   if (tandemUnder10) {
     failedCriteria.push(failedCriterion(
@@ -733,6 +863,10 @@ function buildBalanceAssessment(result = {}, { config = AssessmentRuleConfig } =
   }
   if (stepOutDetected) {
     mergeScore(weaknessScores, WeaknessIds.BalanceControl, 0.74);
+  }
+  if (oneLegOnlyFailure) {
+    mergeScore(weaknessScores, WeaknessIds.BalanceControl, scoreBelow(oneLegHold, tandemCutoff, 0.52, 0.72));
+    mergeScore(weaknessScores, WeaknessIds.HipAbductorMediolateralControl, 0.58);
   }
 
   mergeScore(
@@ -757,12 +891,18 @@ function buildBalanceAssessment(result = {}, { config = AssessmentRuleConfig } =
   const testFlags = {
     clinicalCutoffFailed: tandemUnder10,
     tandemUnder10Sec: tandemUnder10,
+    sideBySideUnder10Sec: sideBySideUnder10,
+    semiTandemUnder10Sec: semiTandemUnder10,
+    earlyStageUnder10Sec: earlyStageUnder10,
+    oneLegUnder10Sec: oneLegUnder10,
+    oneLegOnlyFailure,
     stageNotCompleted,
-    balanceControlSignal: tandemUnder10 || stepOutDetected,
+    balanceControlSignal: tandemUnder10 || stepOutDetected || earlyStageUnder10 || oneLegOnlyFailure,
     handSupportDetected,
     stepOutDetected,
-    safetyEvent: handSupportDetected || stepOutDetected,
-    needsSaferSetupOrSupervision: handSupportDetected,
+    safetyEvent: handSupportDetected || stepOutDetected || earlyStageUnder10,
+    needsSaferSetupOrSupervision: handSupportDetected || earlyStageUnder10,
+    needsSupervisedBalanceProgram: earlyStageUnder10,
     cameraSetupNeeded: false,
   };
 
@@ -781,7 +921,7 @@ function buildBalanceAssessment(result = {}, { config = AssessmentRuleConfig } =
     seniorMessage: balanceSeniorMessage(weaknessScores, testFlags),
     staffMessage: balanceStaffMessage(rawMetrics, weaknessScores, testFlags),
     professionalNotes:
-      'Static balance screening links tandem hold, sway direction, foot repositioning, and visible support use to exercise planning. Not diagnostic.',
+      'Static balance screening applies CDC STEADI hold criteria first. Landmark sway is a camera-based movement proxy, not force-plate center-of-pressure data, and is used only to tailor exercise cues.',
   });
 }
 
@@ -834,6 +974,9 @@ function buildChairStandAssessment(result = {}, { profile, ageYears, gender, con
   const avgSitPhaseTimeSec = firstFinite(aggregate.sittingSpeed?.meanDurationSeconds);
   const descentVelocity = firstFinite(aggregate.sittingSpeed?.meanHipDescentVelocityBodyHeightsPerSec);
   const leftRightAsymmetryIndex = firstFinite(result.leftRightAsymmetryIndex, 1 - (result.symmetryScore ?? aggregate.symmetryScoreMean ?? 1));
+  const kneeValgus = aggregate.kneeValgus || result.kneeValgus || {};
+  const weightShiftAsymmetry = aggregate.weightShiftAsymmetry || result.weightShiftAsymmetry || {};
+  const functionalCompletion = aggregate.functionalCompletion || {};
   const fatigueDropOff = fatigueDropOffFromChair(result);
   const confidenceScore = firstFinite(chair.confidence, result.confidence, 0);
   const trackingQualityScore = trackingQualityFrom(result, chair) ?? confidenceScore;
@@ -846,11 +989,25 @@ function buildChairStandAssessment(result = {}, { profile, ageYears, gender, con
     avgSitPhaseTimeSec: roundOrNull(avgSitPhaseTimeSec),
     failedRepCount: firstFinite(result.failedRepCount, 0),
     armAssistDetected,
+    incompleteStandAttemptDetected: Boolean(
+      result.incompleteStandAttemptDetected
+        || chair.incompleteStandAttemptDetected
+        || functionalCompletion.incompleteStandAttemptDetected
+    ),
+    failedStandAttemptCount: firstFinite(
+      result.failedStandAttemptCount,
+      chair.failedStandAttemptCount,
+      functionalCompletion.failedStandAttemptCount,
+      0,
+    ),
     trunkForwardLeanPeak: roundOrNull(firstFinite(trunkForwardLean.angleMaxDegrees, result.trunkForwardLeanPeak)),
     trunkForwardLeanDuration: roundOrNull(firstFinite(result.trunkForwardLeanDuration), 2),
     kneeExtensionVelocity: roundOrNull(kneeExtensionVelocity, 2),
     hipExtensionVelocity: roundOrNull(hipExtensionVelocity, 2),
-    kneeValgusOrInwardCollapse: result.kneeValgusOrInwardCollapse ?? null,
+    kneeValgusOrInwardCollapse: result.kneeValgusOrInwardCollapse ?? kneeValgus.observed ?? null,
+    kneeValgusScore: roundOrNull(kneeValgus.scoreMean ?? kneeValgus.score, 3),
+    weightShiftAsymmetryScore: roundOrNull(weightShiftAsymmetry.scoreMean ?? weightShiftAsymmetry.score, 3),
+    weightShiftMaxOffset: roundOrNull(weightShiftAsymmetry.maxNormalizedOffset ?? weightShiftAsymmetry.normalizedOffset, 3),
     descentControlScore: descentControlScore(avgSitPhaseTimeSec, descentVelocity),
     leftRightAsymmetryIndex: roundOrNull(leftRightAsymmetryIndex, 3),
     fatigueDropOff: roundOrNull(fatigueDropOff, 3),
@@ -861,6 +1018,7 @@ function buildChairStandAssessment(result = {}, { profile, ageYears, gender, con
     ['trunkForwardLeanDuration'],
     [
       rawMetrics.kneeValgusOrInwardCollapse === null ? 'kneeValgusOrInwardCollapse' : null,
+      rawMetrics.weightShiftAsymmetryScore === null ? 'weightShiftAsymmetryScore' : null,
       rawMetrics.fatigueDropOff === null ? 'fatigueDropOff' : null,
       rawMetrics.avgStandPhaseTimeSec === null ? 'avgStandPhaseTimeSec' : null,
     ],
@@ -881,6 +1039,16 @@ function buildChairStandAssessment(result = {}, { profile, ageYears, gender, con
   const belowThreshold = threshold !== null && officialReps !== null && officialReps < threshold;
   const weaknessScores = emptyWeaknessScores();
   const failedCriteria = [];
+
+  if (armAssistDetected) {
+    failedCriteria.push(failedCriterion(
+      AssessmentTypes.ChairStand30Sec,
+      'armUseDisqualified',
+      officialReps,
+      0,
+      { clinicalCutoff: false },
+    ));
+  }
 
   if (belowThreshold) {
     failedCriteria.push(failedCriterion(
@@ -903,15 +1071,23 @@ function buildChairStandAssessment(result = {}, { profile, ageYears, gender, con
   const eccentricSignal = rawMetrics.descentControlScore !== null && rawMetrics.descentControlScore < 0.45;
   const fatigueSignal = fatigueDropOff !== null && fatigueDropOff >= config.weaknessThresholds.fatigueDropOffRatio;
   const asymmetrySignal = leftRightAsymmetryIndex !== null && leftRightAsymmetryIndex >= config.weaknessThresholds.asymmetryIndex;
+  const kneeValgusSignal = rawMetrics.kneeValgusOrInwardCollapse === true
+    || (rawMetrics.kneeValgusScore !== null && rawMetrics.kneeValgusScore >= 0.45);
+  const weightShiftSignal = rawMetrics.weightShiftAsymmetryScore !== null && rawMetrics.weightShiftAsymmetryScore >= 0.45;
+  const incompleteStandSignal = rawMetrics.incompleteStandAttemptDetected || rawMetrics.failedStandAttemptCount > 0;
 
   if (lowRepsPattern && kneeVelocityLow) mergeScore(weaknessScores, WeaknessIds.QuadricepsStrength, 0.68);
   else if (kneeVelocityLow) mergeScore(weaknessScores, WeaknessIds.QuadricepsStrength, 0.45);
   if (lowRepsPattern && trunkLeanHigh) mergeScore(weaknessScores, WeaknessIds.HipExtensorGluteStrength, 0.72);
   else if (trunkLeanHigh || hipVelocityLow) mergeScore(weaknessScores, WeaknessIds.HipExtensorGluteStrength, 0.48);
+  if (kneeValgusSignal) mergeScore(weaknessScores, WeaknessIds.HipAbductorMediolateralControl, 0.68);
+  if (weightShiftSignal) mergeScore(weaknessScores, WeaknessIds.AsymmetryNeedsReview, 0.66);
+  if (weightShiftSignal) mergeScore(weaknessScores, WeaknessIds.HipAbductorMediolateralControl, 0.44);
   if (eccentricSignal) mergeScore(weaknessScores, WeaknessIds.EccentricControl, 0.66);
   if (fatigueSignal) mergeScore(weaknessScores, WeaknessIds.LowerBodyEndurance, 0.64);
   if (asymmetrySignal) mergeScore(weaknessScores, WeaknessIds.AsymmetryNeedsReview, 0.72);
   if (armAssistDetected) mergeScore(weaknessScores, WeaknessIds.LowerBodyEndurance, 0.76);
+  if (incompleteStandSignal) mergeScore(weaknessScores, WeaknessIds.LowerBodyEndurance, 0.72);
 
   const testFlags = {
     clinicalCutoffFailed: belowThreshold,
@@ -919,8 +1095,11 @@ function buildChairStandAssessment(result = {}, { profile, ageYears, gender, con
     profilePrompt: profileInfoNeeded ? 'Needs profile info for age-based comparison' : null,
     belowAgeSexThreshold: belowThreshold,
     armAssistDetected,
+    incompleteStandAttemptDetected: incompleteStandSignal,
+    kneeValgusOrInwardCollapse: kneeValgusSignal,
+    weightShiftAsymmetryDetected: weightShiftSignal,
     safetyEvent: armAssistDetected,
-    needsAssistedStrengthening: armAssistDetected,
+    needsAssistedStrengthening: armAssistDetected || incompleteStandSignal,
     cameraSetupNeeded: false,
   };
 
@@ -939,7 +1118,7 @@ function buildChairStandAssessment(result = {}, { profile, ageYears, gender, con
     seniorMessage: chairSeniorMessage(weaknessScores, testFlags),
     staffMessage: chairStaffMessage(rawMetrics, weaknessScores, testFlags, threshold),
     professionalNotes:
-      '30-second Chair Stand screening uses CDC STEADI below-average comparison when age and sex are available. Motion metrics support exercise selection and are not diagnostic.',
+      '30-second Chair Stand screening uses CDC STEADI below-average comparison when age and sex are available. Motion flags are observation-only cues for exercise selection and do not diagnose muscle weakness or disease.',
   });
 }
 
@@ -1208,6 +1387,11 @@ function buildRecommendationPlan({
     ...secondaryWeaknesses.map((item) => item.id),
   ].filter(Boolean);
   const exerciseIds = [];
+  if (testFlags.armAssistDetected || testFlags.incompleteStandAttemptDetected) {
+    for (const id of ['elevated_sit_to_stand', 'partial_sit_to_stand', 'mini_knee_bends']) {
+      if (!exerciseIds.includes(id)) exerciseIds.push(id);
+    }
+  }
   for (const weakness of weaknessOrder.length ? weaknessOrder : ['generalMaintenance']) {
     for (const id of WeaknessExerciseMap[weakness] || []) {
       if (!exerciseIds.includes(id)) exerciseIds.push(id);
@@ -1222,6 +1406,7 @@ function buildRecommendationPlan({
       if (testFlags.lossOfBalanceDetected || testFlags.wallOrFurnitureSupportDetected) {
         return exercise.requiresChairSupport || exercise.category === 'strength';
       }
+      if (testFlags.needsSupervisedBalanceProgram) return exercise.requiresChairSupport;
       if (testFlags.handSupportDetected || testFlags.armAssistDetected) return exercise.requiresChairSupport;
       return true;
     })
@@ -1269,7 +1454,9 @@ function safetyGatesFor(testFlags = {}) {
   const gates = [];
   if (testFlags.lossOfBalanceDetected) gates.push('loss_of_balance_detected');
   if (testFlags.wallOrFurnitureSupportDetected) gates.push('supervised_mode_recommended');
+  if (testFlags.needsSupervisedBalanceProgram) gates.push('supervised_balance_program_recommended');
   if (testFlags.handSupportDetected) gates.push('chair_supported_balance_only');
+  if (testFlags.incompleteStandAttemptDetected) gates.push('partial_sit_to_stand_regression');
   if (testFlags.armAssistDetected) gates.push('assisted_sit_to_stand_progression');
   return gates;
 }
@@ -1277,7 +1464,9 @@ function safetyGatesFor(testFlags = {}) {
 function safetyGateCopy(testFlags = {}) {
   if (testFlags.lossOfBalanceDetected) return 'Use supported practice today and consider professional review if this pattern continues.';
   if (testFlags.wallOrFurnitureSupportDetected) return 'Use supervised mode for walking practice today.';
+  if (testFlags.needsSupervisedBalanceProgram) return 'Use chair-supported balance practice and consider professional review if this repeats.';
   if (testFlags.handSupportDetected) return 'Use chair-supported balance practice today.';
+  if (testFlags.incompleteStandAttemptDetected) return 'Use a higher chair, small range, and support for sit-to-stand practice today.';
   if (testFlags.armAssistDetected) return 'Use assisted sit-to-stand progression today.';
   return 'Use supported practice today.';
 }
@@ -1285,6 +1474,12 @@ function safetyGateCopy(testFlags = {}) {
 function recommendationSeniorMessage(primaryWeakness, testFlags = {}) {
   if (testFlags.lossOfBalanceDetected || testFlags.wallOrFurnitureSupportDetected) {
     return 'Let us keep the next exercise supported and steady today.';
+  }
+  if (testFlags.needsSupervisedBalanceProgram) {
+    return 'Balance looked harder today. We will keep practice supported and steady.';
+  }
+  if (testFlags.incompleteStandAttemptDetected) {
+    return 'A full stand was not reached every time. We will start with a higher chair and supported practice.';
   }
   if (primaryWeakness === WeaknessIds.HipAbductorMediolateralControl) {
     return "Your body swayed a little more from side to side today. Let's wake up your side hip muscles.";
@@ -1329,8 +1524,11 @@ function tugSeniorMessage(weaknessScores, testFlags) {
 
 function balanceStaffMessage(rawMetrics, weaknessScores, testFlags) {
   const weakness = WeaknessLabels[topWeakness(weaknessScores)] || 'balance control';
-  const support = testFlags.needsSaferSetupOrSupervision ? ' Visible support use was observed; use supported setup.' : '';
-  return `Balance screening suggests ${weakness}. Tandem hold ${rawMetrics.tandemHoldSec ?? '-'}s.${support}`;
+  const support = testFlags.handSupportDetected ? ' Visible support use was observed; use supported setup.' : '';
+  const early = testFlags.earlyStageUnder10Sec
+    ? ` Early-stage hold under 10s (side-by-side ${rawMetrics.sideBySideHoldSec ?? '-'}s, semi-tandem ${rawMetrics.semiTandemHoldSec ?? '-'}s).`
+    : '';
+  return `Balance screening practice focus: ${weakness}. Tandem hold ${rawMetrics.tandemHoldSec ?? '-'}s.${early}${support}`;
 }
 
 function chairStaffMessage(rawMetrics, weaknessScores, testFlags, threshold) {
@@ -1338,7 +1536,10 @@ function chairStaffMessage(rawMetrics, weaknessScores, testFlags, threshold) {
     return 'Chair Stand captured; age/sex profile information is needed for CDC STEADI comparison.';
   }
   const weakness = WeaknessLabels[topWeakness(weaknessScores)] || 'lower-body control';
-  return `Chair Stand ${rawMetrics.officialClinicalReps ?? rawMetrics.completedReps ?? '-'} reps vs threshold ${threshold ?? '-'}. Pattern suggests ${weakness}.`;
+  const alignment = testFlags.kneeValgusOrInwardCollapse ? ' Knee inward-collapse flag observed.' : '';
+  const weightShift = testFlags.weightShiftAsymmetryDetected ? ' Left-right weight-shift asymmetry observed.' : '';
+  const incomplete = testFlags.incompleteStandAttemptDetected ? ' Partial stand attempt observed; use sit-to-stand regression.' : '';
+  return `Chair Stand ${rawMetrics.officialClinicalReps ?? rawMetrics.completedReps ?? '-'} reps vs threshold ${threshold ?? '-'}. Practice focus: ${weakness}.${alignment}${weightShift}${incomplete}`;
 }
 
 function tugStaffMessage(rawMetrics, weaknessScores, testFlags) {

@@ -252,6 +252,7 @@ export default function App() {
   const [reportMode, setReportMode] = useState(initialConfig.reportMode);
   const [participantId, setParticipantId] = useState(initialConfig.participantId);
   const [missionPreviewActive, setMissionPreviewActive] = useState(initialConfig.missionPreview);
+  const [openRecommendedExercise, setOpenRecommendedExercise] = useState(false);
   const previousSessionIdRef = useRef(dashboard.session?.id);
   const hasRequestedInitialQrRef = useRef(false);
 
@@ -304,7 +305,12 @@ export default function App() {
     previousSessionIdRef.current = dashboard.session?.id;
     setHasStartedTest(false);
     setMissionPreviewActive(false);
+    setOpenRecommendedExercise(false);
   }, [dashboard.session?.id]);
+
+  useEffect(() => {
+    if (dashboard.activeStep !== 'exercise') setOpenRecommendedExercise(false);
+  }, [dashboard.activeStep]);
 
   const handleStartTest = () => {
     setActiveContext('home');
@@ -329,6 +335,7 @@ export default function App() {
       setActiveContext('home');
       setMissionPreviewActive(false);
       setHasStartedTest(true);
+      setOpenRecommendedExercise(false);
       dashboard.setActiveStep('exercise');
       return;
     }
@@ -421,7 +428,10 @@ export default function App() {
         <ResultPanel
           finalResult={displayFinalResult}
           liveResult={dashboard.liveResult}
-          onGoExercises={() => dashboard.setActiveStep('exercise')}
+          onGoExercises={() => {
+            setOpenRecommendedExercise(true);
+            dashboard.setActiveStep('exercise');
+          }}
           onDemoFinal={dashboard.handleSaveFinal}
         />
       );
@@ -433,6 +443,7 @@ export default function App() {
           finalResult={displayFinalResult || emergencyExerciseResult(panelDashboard)}
           remoteCameraFrame={dashboard.remoteCameraFrame}
           poseAnalysis={displayPoseAnalysis}
+          openRecommendedOnMount={openRecommendedExercise}
           onViewProgress={() => dashboard.setActiveStep('progress')}
         />
       );

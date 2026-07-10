@@ -1,11 +1,11 @@
 .steply-shell {
   display: grid;
   grid-template-columns: minmax(300px, var(--rail-width)) minmax(0, 1fr);
-  gap: 16px;
-  width: min(1016px, 100%);
+  gap: 18px;
+  width: min(1088px, 100%);
   min-height: 100vh;
   margin: 0 auto;
-  padding: 20px;
+  padding: clamp(18px, 2.2vw, 28px);
 }
 
 .session-rail {
@@ -32,7 +32,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 4px 2px;
+  padding: 4px 2px 8px;
 }
 
 .brand-mark {
@@ -41,10 +41,12 @@
   width: 48px;
   height: 48px;
   border-radius: 12px;
-  color: white;
+  color: var(--on-primary);
   font-size: 22px;
   font-weight: 800;
-  background: var(--primary);
+  background:
+    linear-gradient(150deg, color-mix(in srgb, var(--primary) 86%, white), var(--primary-dark));
+  box-shadow: 0 14px 30px color-mix(in srgb, var(--primary) 26%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.42);
 }
 
 .brand-lockup strong {
@@ -60,7 +62,7 @@
 
 .dashboard-main {
   display: grid;
-  gap: 16px;
+  gap: 18px;
   min-width: 0;
   max-width: 1040px;
 }
@@ -78,7 +80,7 @@
   font-size: clamp(28px, 4vw, 36px);
   line-height: 1.12;
   letter-spacing: 0;
-  font-weight: 800;
+  font-weight: 850;
   color: var(--text-primary);
 }
 
@@ -97,13 +99,15 @@
   min-height: 40px;
   padding: 0 14px;
   border-radius: 999px;
-  background: var(--surface);
+  background: var(--glass-surface-strong);
   border: var(--border-soft);
   box-shadow: var(--shadow-card);
   color: var(--primary);
   font-size: 14px;
   font-weight: 700;
   white-space: nowrap;
+  backdrop-filter: blur(16px) saturate(1.16);
+  -webkit-backdrop-filter: blur(16px) saturate(1.16);
 }
 
 .status-dot {
@@ -111,14 +115,14 @@
   height: 12px;
   border-radius: 50%;
   background: var(--success);
-  box-shadow: 0 0 0 5px color-mix(in srgb, var(--success) 18%, transparent);
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--success) 18%, transparent), 0 0 18px color-mix(in srgb, var(--success) 42%, transparent);
 }
 
 .eyebrow {
   color: var(--primary-dark);
   font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  font-weight: 800;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
@@ -173,8 +177,9 @@
 .qr-link-modal__backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(17, 25, 22, 0.42);
-  backdrop-filter: blur(6px);
+  background: rgba(16, 36, 31, 0.32);
+  backdrop-filter: blur(14px) saturate(1.1);
+  -webkit-backdrop-filter: blur(14px) saturate(1.1);
 }
 
 .qr-link-modal__panel {
@@ -188,8 +193,10 @@
   padding: 18px;
   border: var(--border-soft);
   border-radius: var(--radius-card);
-  background: var(--surface);
+  background: var(--glass-surface-strong);
   box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(22px) saturate(1.2);
+  -webkit-backdrop-filter: blur(22px) saturate(1.2);
 }
 
 .qr-link-modal__header h2 {

@@ -15,7 +15,7 @@ const ChairStandPosePhase = {
 };
 
 const MIN_LANDMARK_VISIBILITY = 0.45;
-const REQUIRED_SEATED_FRAMES = 2;
+const REQUIRED_SEATED_FRAMES = 1;
 const REQUIRED_STANDING_FRAMES = 1;
 const ARM_SUPPORT_DISQUALIFY_FRAMES = 3;
 const ARM_SUPPORT_Y_MARGIN = 0.05;
@@ -34,6 +34,8 @@ const MIN_VECTOR_MAGNITUDE = 0.0001;
 const MIN_EXTENSION_VELOCITY_DEG_PER_SEC = 8;
 const MIN_FLEXION_VELOCITY_DEG_PER_SEC = -8;
 const MIN_HIP_DESCENT_BODY_HEIGHTS_PER_SEC = 0.04;
+const KNEE_VALGUS_SCORE_THRESHOLD = 0.45;
+const WEIGHT_SHIFT_SCORE_THRESHOLD = 0.45;
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const averageOrNull = (values) => values.length ? clamp(values.reduce((sum, v) => sum + v, 0) / values.length, 0, 1) : null;
@@ -49,8 +51,32 @@ const minOrNull = (values) => {
   const finite = values.filter(Number.isFinite);
   return finite.length ? Math.min(...finite) : null;
 };
-const distance = (first, second) => Math.hypot(first.x - second.x, first.y - second.y);
-const midpoint = (first, second) => ({ x: (first.x + second.x) / 2, y: (first.y + second.y) / 2 });
+const distance = (first, second) => {
+  if (
+    !first
+    || !second
+    || !Number.isFinite(first.x)
+    || !Number.isFinite(first.y)
+    || !Number.isFinite(second.x)
+    || !Number.isFinite(second.y)
+  ) {
+    return null;
+  }
+  return Math.hypot(first.x - second.x, first.y - second.y);
+};
+const midpoint = (first, second) => {
+  if (
+    !first
+    || !second
+    || !Number.isFinite(first.x)
+    || !Number.isFinite(first.y)
+    || !Number.isFinite(second.x)
+    || !Number.isFinite(second.y)
+  ) {
+    return null;
+  }
+  return { x: (first.x + second.x) / 2, y: (first.y + second.y) / 2 };
+};
 const averagePoint = (points) => {
   const visible = points.filter(Boolean);
   if (!visible.length) return null;
@@ -146,6 +172,15 @@ export class MediaPipeChairStandAnalyzer {
     if (Number.isFinite(features.trunkForwardLean.angleDegrees)) {
       this.trunkForwardLeanSamples.push(features.trunkForwardLean.angleDegrees);
     }
+    if (Number.isFinite(features.kneeValgus?.score)) {
+      this.kneeValgusSamples.push(features.kneeValgus.score);
+      if (features.kneeValgus.observed) this.kneeValgusObservationCount += 1;
+    }
+    if (Number.isFinite(features.weightShiftAsymmetry?.score)) {
+      this.weightShiftAsymmetrySamples.push(features.weightShiftAsymmetry.score);
+      this.weightShiftOffsetSamples.push(features.weightShiftAsymmetry.normalizedOffset);
+      if (features.weightShiftAsymmetry.observed) this.weightShiftObservationCount += 1;
+    }
     this.symmetrySamples.push(features.symmetryScore);
     this.stabilitySamples.push(features.stabilityScore);
     this.rememberBodyCenter(features.bodyCenter);
@@ -210,6 +245,11 @@ export class MediaPipeChairStandAnalyzer {
       slowestRepSeconds: repIntervalsSeconds.length ? Math.max(...repIntervalsSeconds) : null,
       trunkLeanScore: averageOrNull(this.trunkLeanSamples),
       trunkForwardLean: chairStandResult.aggregate.trunkForwardLean,
+      kneeValgusOrInwardCollapse: chairStandResult.aggregate.kneeValgus.observed,
+      kneeValgus: chairStandResult.aggregate.kneeValgus,
+      weightShiftAsymmetry: chairStandResult.aggregate.weightShiftAsymmetry,
+      incompleteStandAttemptDetected: chairStandResult.incompleteStandAttemptDetected,
+      failedStandAttemptCount: chairStandResult.failedStandAttemptCount,
       symmetryScore: averageOrNull(this.symmetrySamples),
       stabilityScore: averageOrNull(this.stabilitySamples),
       kneeExtensionAngularVelocityDegPerSec: chairStandResult.aggregate.extensionAngularVelocityDegPerSec.knee,
@@ -236,6 +276,11 @@ export class MediaPipeChairStandAnalyzer {
     this.confidenceSamples = [];
     this.trunkLeanSamples = [];
     this.trunkForwardLeanSamples = [];
+    this.kneeValgusSamples = [];
+    this.kneeValgusObservationCount = 0;
+    this.weightShiftAsymmetrySamples = [];
+    this.weightShiftOffsetSamples = [];
+    this.weightShiftObservationCount = 0;
     this.symmetrySamples = [];
     this.stabilitySamples = [];
     this.recentBodyCenters = [];
@@ -248,6 +293,10 @@ export class MediaPipeChairStandAnalyzer {
     this.cycleCounted = false;
     this.cycleStartedAtMs = null;
     this.cycleStandingAtMs = null;
+    this.cycleHadHalfway = false;
+    this.initialStandingObserved = false;
+    this.incompleteStandAttemptCount = 0;
+    this.halfwayStandObservationCount = 0;
     this.standingStreak = 0;
     this.seatedStreak = 0;
     this.armSupportFrames = 0;
@@ -258,6 +307,18 @@ export class MediaPipeChairStandAnalyzer {
   updateRepetitionCount(timestampMs, features) {
     this.standingStreak = features.phase === ChairStandPosePhase.Standing ? this.standingStreak + 1 : 0;
     this.seatedStreak = features.phase === ChairStandPosePhase.Seated ? this.seatedStreak + 1 : 0;
+    if (
+      this.repetitionCount === 0
+      && !this.cycleActive
+      && !this.readyForNextStand
+      && features.phase === ChairStandPosePhase.Standing
+    ) {
+      this.initialStandingObserved = true;
+    }
+    if (features.halfwayToStanding) {
+      this.halfwayStandObservationCount += 1;
+      if (this.cycleActive) this.cycleHadHalfway = true;
+    }
 
     if (this.seatedStreak >= REQUIRED_SEATED_FRAMES) {
       if (this.cycleActive) {
@@ -265,17 +326,27 @@ export class MediaPipeChairStandAnalyzer {
         if (this.cycleCounted && latestRep && latestRep.seatedAtMs === null) {
           latestRep.seatedAtMs = timestampMs;
         }
+        if (!this.cycleCounted && this.cycleHadHalfway) {
+          this.incompleteStandAttemptCount += 1;
+        }
         this.cycleActive = false;
         this.cycleHasStanding = false;
         this.cycleCounted = false;
         this.cycleStartedAtMs = null;
         this.cycleStandingAtMs = null;
+        this.cycleHadHalfway = false;
       }
       this.readyForNextStand = true;
     }
 
+    const canStartFirstCycleFromRising = this.repetitionCount === 0
+      && !this.initialStandingObserved
+      && !this.cycleActive
+      && features.phase === ChairStandPosePhase.Rising
+      && features.fullBodyVisible;
+
     if (
-      this.readyForNextStand &&
+      (this.readyForNextStand || canStartFirstCycleFromRising) &&
       (features.phase === ChairStandPosePhase.Rising || features.phase === ChairStandPosePhase.Standing) &&
       features.fullBodyVisible &&
       !this.armUseDisqualified
@@ -284,6 +355,7 @@ export class MediaPipeChairStandAnalyzer {
       this.cycleStartedAtMs = this.cycleStartedAtMs || timestampMs;
       this.readyForNextStand = false;
       this.cycleCounted = false;
+      this.cycleHadHalfway = Boolean(features.halfwayToStanding);
     }
 
     if (
@@ -325,6 +397,17 @@ export class MediaPipeChairStandAnalyzer {
     return 0;
   }
 
+  incompleteStandAttemptDetectedAtFinish() {
+    return Boolean(
+      this.incompleteStandAttemptCount > 0
+        || (
+          this.cycleActive
+          && !this.cycleCounted
+          && (this.cycleHadHalfway || this.latestFeatures?.halfwayToStanding)
+        )
+    );
+  }
+
   rememberKinematicSample(features) {
     this.kinematicSamples.push({
       timestampMs: features.timestampMs,
@@ -336,6 +419,8 @@ export class MediaPipeChairStandAnalyzer {
       bodyHeight: features.bodyHeight,
       hipVerticalVelocityBodyHeightsPerSec: features.hipVerticalVelocityBodyHeightsPerSec,
       trunkForwardLean: features.trunkForwardLean,
+      kneeValgus: features.kneeValgus,
+      weightShiftAsymmetry: features.weightShiftAsymmetry,
       trunkLeanScore: features.trunkLeanScore,
       symmetryScore: features.symmetryScore,
       stabilityScore: features.stabilityScore,
@@ -481,6 +566,9 @@ export class MediaPipeChairStandAnalyzer {
     const extensionHipMeans = repetitions.map((rep) => rep.extension.hipAngularVelocityDegPerSec.meanDegPerSec);
     const extensionHipMaxes = repetitions.map((rep) => rep.extension.hipAngularVelocityDegPerSec.maxDegPerSec);
     const sittingSegments = repetitions.map((rep) => rep.sitting).filter(Boolean);
+    const incompleteStandAttemptDetected = this.incompleteStandAttemptDetectedAtFinish();
+    const failedStandAttemptCount = this.incompleteStandAttemptCount
+      + (this.cycleActive && !this.cycleCounted && (this.cycleHadHalfway || this.latestFeatures?.halfwayToStanding) ? 1 : 0);
 
     return {
       schemaVersion: CHAIR_STAND_RESULT_SCHEMA_VERSION,
@@ -489,6 +577,8 @@ export class MediaPipeChairStandAnalyzer {
       repetitionCount: finalRepetitionCount,
       countedRepetitionCount: this.repetitionCount,
       halfStandCredit,
+      incompleteStandAttemptDetected,
+      failedStandAttemptCount,
       armUseDisqualified: this.armUseDisqualified,
       startedAtMs: this.startedAt,
       completedAtMs: completedAt,
@@ -523,6 +613,27 @@ export class MediaPipeChairStandAnalyzer {
           scoreMean: averageOrNull(this.trunkLeanSamples),
           angleMeanDegrees: meanOrNull(this.trunkForwardLeanSamples),
           angleMaxDegrees: maxOrNull(this.trunkForwardLeanSamples),
+        },
+        kneeValgus: {
+          scoreMean: meanOrNull(this.kneeValgusSamples),
+          observedFrameCount: this.kneeValgusObservationCount,
+          availableFrameCount: this.kneeValgusSamples.length,
+          observed: this.kneeValgusObservationCount >= 2
+            || (meanOrNull(this.kneeValgusSamples) ?? 0) >= KNEE_VALGUS_SCORE_THRESHOLD,
+        },
+        weightShiftAsymmetry: {
+          scoreMean: meanOrNull(this.weightShiftAsymmetrySamples),
+          meanNormalizedOffset: meanOrNull(this.weightShiftOffsetSamples),
+          maxNormalizedOffset: maxOrNull(this.weightShiftOffsetSamples),
+          observedFrameCount: this.weightShiftObservationCount,
+          availableFrameCount: this.weightShiftAsymmetrySamples.length,
+          observed: this.weightShiftObservationCount >= 2
+            || (meanOrNull(this.weightShiftAsymmetrySamples) ?? 0) >= WEIGHT_SHIFT_SCORE_THRESHOLD,
+        },
+        functionalCompletion: {
+          incompleteStandAttemptDetected,
+          failedStandAttemptCount,
+          halfwayStandObservationCount: this.halfwayStandObservationCount,
         },
         symmetryScoreMean: averageOrNull(this.symmetrySamples),
         stabilityScoreMean: averageOrNull(this.stabilitySamples),
@@ -613,6 +724,23 @@ export class MediaPipeChairStandAnalyzer {
     const symmetryScore = Number.isFinite(leftKneeAngle) && Number.isFinite(rightKneeAngle)
       ? clamp(1 - Math.abs(leftKneeAngle - rightKneeAngle) / 55, 0, 1)
       : 1;
+    const kneeValgus = this.kneeValgusObservation({
+      leftHip,
+      rightHip,
+      leftKnee,
+      rightKnee,
+      leftAnkle,
+      rightAnkle,
+      shoulderWidth,
+      phase,
+    });
+    const weightShiftAsymmetry = this.weightShiftAsymmetryObservation({
+      hipCenter,
+      leftAnkle,
+      rightAnkle,
+      shoulderWidth,
+      phase,
+    });
     const stabilityScore = this.stabilityScoreWith(bodyCenter);
     const confidenceValues = RequiredChairStandLandmarks
       .map((name) => this.landmark(frame, name)?.visibility ?? frame.confidence)
@@ -637,6 +765,8 @@ export class MediaPipeChairStandAnalyzer {
       angularVelocities,
       hipVerticalVelocityBodyHeightsPerSec,
       trunkForwardLean,
+      kneeValgus,
+      weightShiftAsymmetry,
       debug: {
         leftKneeAngle,
         rightKneeAngle,
@@ -648,7 +778,65 @@ export class MediaPipeChairStandAnalyzer {
         hipExtensionVelocity: angularVelocities.hips.average,
         hipVerticalVelocityBodyHeightsPerSec,
         hipAboveKnees,
+        kneeValgus,
+        weightShiftAsymmetry,
       },
+    };
+  }
+
+  kneeValgusObservation({ leftHip, rightHip, leftKnee, rightKnee, leftAnkle, rightAnkle, shoulderWidth, phase }) {
+    if (![leftHip, rightHip, leftKnee, rightKnee, leftAnkle, rightAnkle].every(Boolean)) {
+      return { available: false, observed: false, score: null };
+    }
+    if (![ChairStandPosePhase.Rising, ChairStandPosePhase.Standing, ChairStandPosePhase.Lowering].includes(phase)) {
+      return { available: true, observed: false, score: 0 };
+    }
+
+    const hipWidth = Math.abs(leftHip.x - rightHip.x);
+    const kneeWidth = Math.abs(leftKnee.x - rightKnee.x);
+    const ankleWidth = Math.abs(leftAnkle.x - rightAnkle.x);
+    const frontalViewReady = hipWidth >= shoulderWidth * 0.28 && ankleWidth >= shoulderWidth * 0.28;
+    if (!frontalViewReady) {
+      return { available: false, observed: false, score: null };
+    }
+
+    const referenceWidth = Math.max(Math.min(hipWidth, ankleWidth), shoulderWidth * 0.35, MIN_VECTOR_MAGNITUDE);
+    const kneeNarrowingRatio = (referenceWidth - kneeWidth) / referenceWidth;
+    const score = clamp((kneeNarrowingRatio - 0.12) / 0.24, 0, 1);
+    return {
+      available: true,
+      observed: score >= KNEE_VALGUS_SCORE_THRESHOLD,
+      score,
+      kneeNarrowingRatio,
+      kneeWidthRatioToReference: kneeWidth / referenceWidth,
+      hipWidth,
+      kneeWidth,
+      ankleWidth,
+    };
+  }
+
+  weightShiftAsymmetryObservation({ hipCenter, leftAnkle, rightAnkle, shoulderWidth, phase }) {
+    if (!hipCenter || !leftAnkle || !rightAnkle) {
+      return { available: false, observed: false, score: null };
+    }
+    if (![ChairStandPosePhase.Rising, ChairStandPosePhase.Standing, ChairStandPosePhase.Lowering].includes(phase)) {
+      return { available: true, observed: false, score: 0, normalizedOffset: 0 };
+    }
+
+    const baseCenter = midpoint(leftAnkle, rightAnkle);
+    const baseWidth = Math.abs(leftAnkle.x - rightAnkle.x);
+    if (!baseCenter || baseWidth < shoulderWidth * 0.28) {
+      return { available: false, observed: false, score: null };
+    }
+    const normalizedOffset = Math.abs(hipCenter.x - baseCenter.x) / Math.max(baseWidth, shoulderWidth * 0.45);
+    const score = clamp((normalizedOffset - 0.18) / 0.26, 0, 1);
+    return {
+      available: true,
+      observed: score >= WEIGHT_SHIFT_SCORE_THRESHOLD,
+      score,
+      normalizedOffset,
+      baseWidth,
+      direction: hipCenter.x < baseCenter.x ? 'left' : 'right',
     };
   }
 
@@ -702,6 +890,10 @@ export class MediaPipeChairStandAnalyzer {
       warningMessage = 'Move back so shoulders, hips, knees, and ankles are all visible.';
     } else if (features.phase === ChairStandPosePhase.Rising && features.armsCrossedLikely === false) {
       warningMessage = 'Keep both arms crossed in front of the chest while standing.';
+    } else if (features.kneeValgus?.observed) {
+      warningMessage = 'Keep both knees aligned over the toes while standing up.';
+    } else if (features.weightShiftAsymmetry?.observed) {
+      warningMessage = 'Press evenly through both feet as you stand and sit.';
     } else if (features.phase === ChairStandPosePhase.Standing && features.trunkLeanScore < TRUNK_WARNING_SCORE) {
       warningMessage = 'Center the trunk so the chest stays above the hips.';
     } else if (features.phase === ChairStandPosePhase.Standing && features.stabilityScore < STABILITY_WARNING_SCORE) {
@@ -730,6 +922,9 @@ export class MediaPipeChairStandAnalyzer {
       phase: features.phase,
       trunkLeanScore: features.trunkLeanScore,
       trunkForwardLean: features.trunkForwardLean,
+      kneeValgusOrInwardCollapse: features.kneeValgus?.observed ?? null,
+      kneeValgus: features.kneeValgus,
+      weightShiftAsymmetry: features.weightShiftAsymmetry,
       symmetryScore: features.symmetryScore,
       stabilityScore: features.stabilityScore,
       kneeExtensionAngularVelocityDegPerSec: features.angularVelocities?.knees?.average ?? null,

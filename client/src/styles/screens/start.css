@@ -12,10 +12,11 @@
 }
 
 .hero-card--wellness {
-  background: var(--primary-container);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--primary-container) 78%, white), color-mix(in srgb, var(--surface-strong) 88%, var(--primary-container)));
   color: var(--text-primary);
   border-color: color-mix(in srgb, var(--primary) 24%, var(--outline));
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--shadow-soft);
 }
 
 .hero-card--wellness .eyebrow,
@@ -94,8 +95,8 @@
   width: 38px;
   height: 38px;
   border-radius: 50%;
-  background: #9ee1cc;
-  box-shadow: 0 0 0 10px rgba(158, 225, 204, 0.18);
+  background: #A9F2DE;
+  box-shadow: 0 0 0 10px rgba(24, 191, 166, 0.14);
 }
 
 .coach-body {
@@ -104,7 +105,7 @@
   width: 48px;
   height: 72px;
   border-radius: 27px 27px 18px 18px;
-  background: linear-gradient(180deg, #9ee1cc, #4F8A7B);
+  background: linear-gradient(180deg, #A9F2DE, var(--primary-dark));
 }
 
 .coach-arm {
@@ -112,7 +113,7 @@
   width: 18px;
   height: 70px;
   border-radius: 999px;
-  background: #7dc8b0;
+  background: #7EDDC9;
   transform-origin: top center;
 }
 
@@ -123,7 +124,7 @@
   width: 18px;
   height: 68px;
   border-radius: 999px;
-  background: #477d71;
+  background: #24796B;
 }
 .coach-leg--left { left: 45px; transform: rotate(5deg); }
 .coach-leg--right { right: 45px; transform: rotate(-5deg); }
@@ -152,17 +153,21 @@
   flex-direction: column;
   justify-content: center;
   gap: 5px;
+  position: relative;
+  overflow: hidden;
 }
 
 .metric-card--accent {
-  background: var(--primary-container);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--primary-container) 92%, white), color-mix(in srgb, var(--primary-container) 58%, white));
+  border-color: color-mix(in srgb, var(--primary) 24%, var(--outline));
 }
 
 .metric-card__value {
   font-size: clamp(30px, 5vw, 42px);
   line-height: 1;
   letter-spacing: 0;
-  font-weight: 800;
+  font-weight: 850;
   color: var(--primary);
 }
 
@@ -194,6 +199,7 @@
   background: color-mix(in srgb, var(--tertiary-container) 70%, var(--surface));
   font-weight: 800;
   font-size: 20px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.68);
 }
 
 .safety-notice strong { font-size: 18px; }
@@ -214,21 +220,33 @@
   text-align: left;
   border: var(--border-soft);
   border-radius: var(--radius-card);
-  background: var(--surface);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-strong) 88%, transparent), color-mix(in srgb, var(--surface-variant) 42%, white));
   box-shadow: var(--shadow-card);
   color: var(--text-primary);
   transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+  backdrop-filter: blur(16px) saturate(1.16);
+  -webkit-backdrop-filter: blur(16px) saturate(1.16);
 }
 
-.test-card:hover { transform: translateY(-1px); box-shadow: var(--shadow-soft); }
-.test-card--selected { border-color: var(--primary); background: var(--primary-container); }
+.test-card:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--primary) 34%, var(--outline));
+  box-shadow: var(--shadow-soft);
+}
+.test-card--selected {
+  border-color: var(--primary);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--primary-container) 86%, white), color-mix(in srgb, var(--primary-container) 58%, white));
+  box-shadow: var(--shadow-glow);
+}
 
 .test-card__chip {
   justify-self: start;
   padding: 7px 11px;
   border-radius: 999px;
   color: var(--primary);
-  background: var(--primary-container);
+  background: color-mix(in srgb, var(--primary-container) 78%, white);
   font-size: 13px;
   font-weight: 700;
 }
@@ -240,9 +258,10 @@
   height: 58px;
   border-radius: 14px;
   color: var(--primary);
-  background: var(--primary-container);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--primary-container) 86%, white), color-mix(in srgb, var(--primary-container) 60%, white));
   font-size: 36px;
   line-height: 1;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
 }
 
 .test-card strong { font-size: 20px; line-height: 1.2; letter-spacing: 0; }

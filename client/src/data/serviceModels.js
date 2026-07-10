@@ -65,7 +65,7 @@ export function buildDemoFinalResult(testType = 'four_stage_balance') {
         ...OtagoExerciseCatalog[OtagoExerciseKeys.SideHipStrengthening],
         id: 'side_hip_strengthening',
         name: 'Side Hip Strengthening',
-        arGameName: 'Side Leg Bubble Pop',
+        arGameName: 'Side Leg Target Reach',
         reason: 'Side-to-side sway was higher during balance stance.',
       };
   const normalizedRecommendation = {

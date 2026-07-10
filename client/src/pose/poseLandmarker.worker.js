@@ -325,7 +325,7 @@ function movementAnalysisIntervalMs() {
 }
 
 function usesFastRawAnalysis() {
-  return selectedTest === 'chair_stand';
+  return false;
 }
 
 function shouldRunMovementAnalysisPipeline(now = Date.now()) {
@@ -614,6 +614,13 @@ function invalidTrackingResult(completedAt, summary, reason = 'camera_tracking_q
     startedAt: session?.startedAt || null,
     completedAt,
   };
+}
+
+function shouldFinishSessionFromState(state) {
+  return Boolean(
+    (state.elapsedSeconds || 0) >= (state.durationSeconds || 30)
+      || state.balanceProtocol?.shouldFinishSession
+  );
 }
 
 function stateForCameraIssue(timestampMs, readiness) {
@@ -1018,11 +1025,12 @@ async function handleFrame(message) {
         processing,
       });
 
-      if (session?.active && (state.elapsedSeconds || 0) >= (state.durationSeconds || 30)) {
+      if (session?.active && shouldFinishSessionFromState(state)) {
         debug('session-auto-finish', {
           selectedTest,
           elapsedSeconds: state.elapsedSeconds,
           durationSeconds: state.durationSeconds,
+          balanceProtocolStatus: state.balanceProtocol?.status || null,
           fastPath: true,
         });
         finishSession({ completedAt: timestampMs });
@@ -1131,11 +1139,12 @@ async function handleFrame(message) {
       processing,
     });
 
-    if (session?.active && (state.elapsedSeconds || 0) >= (state.durationSeconds || 30)) {
+    if (session?.active && shouldFinishSessionFromState(state)) {
       debug('session-auto-finish', {
         selectedTest,
         elapsedSeconds: state.elapsedSeconds,
         durationSeconds: state.durationSeconds,
+        balanceProtocolStatus: state.balanceProtocol?.status || null,
       });
       finishSession({ completedAt: timestampMs });
     }

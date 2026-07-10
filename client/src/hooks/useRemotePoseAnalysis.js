@@ -40,7 +40,9 @@ function fallbackResultFromState({ selectedTest, state, durationSeconds, started
       ? 'Posture Score'
       : testType === 'timed_up_and_go'
         ? 'TUG Time'
-        : 'Chair Stands');
+        : testType === 'four_stage_balance'
+          ? 'Tandem Hold Seconds'
+          : 'Chair Stands');
   const recommendationLevel = recommendationLevelForFallback(testType, state);
   return {
     testType,

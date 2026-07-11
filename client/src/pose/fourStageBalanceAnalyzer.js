@@ -896,6 +896,8 @@ function initialOfficialStageRecord(stage, status = OfficialBalanceStageStatus.P
     endedAtMs: null,
     failureReason: null,
     failureMessage: null,
+    poseConfirmedBy: null,
+    holdVerifiedBy: null,
   };
 }
 
@@ -1038,6 +1040,7 @@ export class FourStageBalanceAnalyzer {
     this.protocolPendingSinceMs = null;
     this.protocolExitPendingSinceMs = null;
     this.currentStageSamples = [];
+    this.userConfirmedStageId = null;
     this.protocolMessage = officialStageGuidance(FOUR_STAGE_BALANCE_STAGES[0].id, 'setup');
     this.protocolFailureReason = null;
     this.balanceResult = alignBalanceResultToOfficialProtocol(
@@ -1061,6 +1064,20 @@ export class FourStageBalanceAnalyzer {
     return stage ? this.protocolStages[this.currentStageIndex] : null;
   }
 
+  confirmCurrentStage() {
+    const stage = this.activeStage();
+    if (!stage || this.protocolStatus !== OfficialBalanceProtocolStatus.Waiting) {
+      return this.getCurrentState(Date.now());
+    }
+    this.userConfirmedStageId = stage.id;
+    const record = this.activeStageRecord();
+    if (record) record.poseConfirmedBy = 'user';
+    this.protocolPendingStageId = null;
+    this.protocolPendingSinceMs = null;
+    this.protocolMessage = 'Position confirmed. Hold still while Steply measures 10 seconds.';
+    return this.getCurrentState(Date.now());
+  }
+
   beginCurrentStage(feature) {
     const stage = this.activeStage();
     const record = this.activeStageRecord();
@@ -1071,6 +1088,7 @@ export class FourStageBalanceAnalyzer {
     record.holdSeconds = 0;
     record.failureReason = null;
     record.failureMessage = null;
+    record.holdVerifiedBy = 'mediapipe';
     this.protocolStatus = OfficialBalanceProtocolStatus.Holding;
     this.currentStageSamples = [feature];
     this.protocolExitPendingSinceMs = null;
@@ -1091,6 +1109,7 @@ export class FourStageBalanceAnalyzer {
     this.protocolPendingStageId = null;
     this.protocolPendingSinceMs = null;
     this.protocolExitPendingSinceMs = null;
+    this.userConfirmedStageId = null;
 
     if (this.currentStageIndex >= FOUR_STAGE_BALANCE_STAGES.length) {
       this.protocolStatus = OfficialBalanceProtocolStatus.Completed;
@@ -1146,7 +1165,8 @@ export class FourStageBalanceAnalyzer {
     const record = this.activeStageRecord();
     if (!stage || !record) return;
 
-    const matchesStage = matchesExpectedStage(feature, stage.id, this.options);
+    const userConfirmed = this.userConfirmedStageId === stage.id;
+    const matchesStage = userConfirmed || matchesExpectedStage(feature, stage.id, this.options);
     const supportPossible = Boolean(feature.possibleHandSupport?.possible);
 
     if (this.protocolStatus === OfficialBalanceProtocolStatus.Waiting) {

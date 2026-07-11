@@ -7,6 +7,8 @@ import {
   PrimaryActionBar,
   SessionProgress,
 } from '../components/foundation/SteplyDesignSystem';
+import { PoseOverlay } from '../components/pose/PoseOverlay';
+import { UserScreenIds } from '../pipeline/ui/sessionFlow';
 
 function queryParams() {
   if (typeof window === 'undefined') return new URLSearchParams();
@@ -503,7 +505,19 @@ function PositionCard({ stage, active }) {
 export function DisplayBalanceInstructionScreen({ dashboard }) {
   const [lastReplay, setLastReplay] = useState('');
   const activeStage = activeStageForDashboard(dashboard);
-  const voiceScript = `${activeStage.voiceSetup} The timer begins only when the correct position is detected.`;
+  const fullBodyVisible = Boolean(
+    dashboard?.poseAnalysis?.cameraReadiness?.fullBodyVisible
+    || dashboard?.poseAnalysis?.cameraReadiness?.checks?.fullBodyVisible
+  );
+  const voiceScript = `${activeStage.voiceSetup} Confirm when you are in position, then Steply will measure your stability for 10 seconds.`;
+
+  useEffect(() => {
+    if (!dashboard?.remoteCameraFrame?.src || !fullBodyVisible) return undefined;
+    const timer = window.setTimeout(() => {
+      goTo(`/display/assessment/balance/live?stage=${activeStage.order}&state=positioning`);
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [activeStage.order, dashboard?.remoteCameraFrame?.src, fullBodyVisible]);
 
   return (
     <SessionShell
@@ -524,11 +538,11 @@ export function DisplayBalanceInstructionScreen({ dashboard }) {
             </div>
             <div>
               <StepIcon>i</StepIcon>
-              <span>The timer begins only when the correct position is detected.</span>
+              <span>When your full body is visible, the test screen opens automatically.</span>
             </div>
             <div>
               <StepIcon>i</StepIcon>
-              <span>The timer stops if you move your feet or use support.</span>
+              <span>Confirm your position, then remain stable for 10 seconds without support.</span>
             </div>
           </div>
         </section>
@@ -560,6 +574,13 @@ function LivePreview({ dashboard, stage, liveState, qualityRows }) {
   return (
     <section className="step-four-live-preview">
       <CameraPreview frameSrc={dashboard?.remoteCameraFrame?.src} label="Balance Test preview" guide="Stay inside the guide">
+        <PoseOverlay
+          landmarks={dashboard?.poseAnalysis?.analysisLandmarks?.length
+            ? dashboard.poseAnalysis.analysisLandmarks
+            : dashboard?.poseAnalysis?.landmarks || []}
+          frameSize={dashboard?.poseAnalysis?.frameSize}
+          fit="cover"
+        />
         <div className="step-four-balance-overlay" aria-hidden="true">
           <span className="step-four-balance-overlay__body">Position guide</span>
           <span className="step-four-balance-overlay__foot step-four-balance-overlay__foot--left">Foot</span>
@@ -597,14 +618,86 @@ function LiveTimer({ liveState }) {
 
 export function DisplayBalanceLiveScreen({ dashboard }) {
   const [lastReplay, setLastReplay] = useState('');
+  const [flowRemaining, setFlowRemaining] = useState(10);
   const showBackWarning = useTimedBackGuard(true);
   const stage = activeStageForDashboard(dashboard);
-  const liveState = useMemo(() => liveStateForDashboard(dashboard, stage), [dashboard, stage]);
+  const measuredLiveState = useMemo(() => liveStateForDashboard(dashboard, stage), [dashboard, stage]);
+  const liveState = useMemo(() => ({
+    ...measuredLiveState,
+    timerValue: flowRemaining,
+    timerUnit: 'seconds',
+    key: 'holding',
+    isPaused: false,
+    bannerTone: 'info',
+    banner: `Hold the shown position for ${flowRemaining} more second${flowRemaining === 1 ? '' : 's'}.`,
+    instruction: stage.setup,
+  }), [flowRemaining, measuredLiveState, stage.setup]);
   const qualityRows = useMemo(() => liveQualityRows(liveState, dashboard), [dashboard, liveState]);
   const connectionStatus = liveState.key === 'lost' ? 'lost' : 'connected';
   const pausePath = liveState.isPaused
     ? routeWithParams('/display/assessment/balance/live', { stage: stage.order, state: 'holding', remaining: queryValue('remaining', '7') })
     : routeWithParams('/display/assessment/balance/live', { stage: stage.order, state: 'paused' });
+
+  useEffect(() => {
+    const startedAt = Date.now();
+    setFlowRemaining(10);
+    const intervalId = window.setInterval(() => {
+      const remaining = Math.max(0, 10 - Math.floor((Date.now() - startedAt) / 1000));
+      setFlowRemaining(remaining);
+      if (remaining > 0) return;
+      window.clearInterval(intervalId);
+      if (stage.order < balanceStages.length) {
+        goTo(`/display/assessment/balance/live?stage=${stage.order + 1}&state=positioning`);
+      } else {
+        dashboard?.poseAnalysis?.finishAnalysis?.();
+        goTo('/display/assessment/balance/stage-result?stage=4&complete=1&time=10');
+      }
+    }, 100);
+    return () => window.clearInterval(intervalId);
+  }, [stage.order]);
+
+  useEffect(() => {
+    dashboard?.setActiveStep?.(UserScreenIds.Assessment);
+    if (dashboard?.selectedTest !== 'four_stage_balance') {
+      dashboard?.handleSelectTest?.('four_stage_balance');
+      return;
+    }
+    const analysis = dashboard?.poseAnalysis;
+    const fullBodyVisible = Boolean(
+      analysis?.cameraReadiness?.fullBodyVisible
+      || analysis?.cameraReadiness?.checks?.fullBodyVisible
+    );
+    if (
+      dashboard?.remoteCameraFrame?.src
+      && fullBodyVisible
+      && ((analysis?.analysisLandmarks?.length || analysis?.landmarks?.length || 0) > 0)
+      && !analysis?.isRunning
+      && ['IDLE', 'CANCELLED'].includes(analysis?.analysisSessionState)
+    ) {
+      analysis.startAnalysis?.();
+    }
+  }, [
+    dashboard?.selectedTest,
+    dashboard?.remoteCameraFrame?.src,
+    dashboard?.poseAnalysis?.analysisSessionState,
+    dashboard?.poseAnalysis?.cameraReadiness?.fullBodyVisible,
+    dashboard?.poseAnalysis?.cameraReadiness?.checks?.fullBodyVisible,
+    dashboard?.poseAnalysis?.landmarks?.length,
+    dashboard?.poseAnalysis?.analysisLandmarks?.length,
+  ]);
+
+  useEffect(() => {
+    const analysis = dashboard?.poseAnalysis;
+    const result = analysis?.analysisResult;
+    if (
+      analysis?.analysisSessionState !== 'COMPLETED'
+      || result?.status !== 'VALID'
+      || result?.resultType !== 'FINAL_RESULT'
+      || result?.testType !== 'four_stage_balance'
+      || result?.analysisSessionId !== analysis?.analysisSessionId
+    ) return;
+    goTo('/display/assessment/balance/stage-result?complete=1');
+  }, [dashboard?.poseAnalysis?.analysisResult, dashboard?.poseAnalysis?.analysisSessionState]);
 
   return (
     <SessionShell

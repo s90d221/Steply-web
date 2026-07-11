@@ -1,3 +1,5 @@
+import { HomeLogo } from '../HomeLogo';
+
 function Icon({ children = 'i', tone = 'info' }) {
   return (
     <span className={`ds-icon ds-icon--${tone}`} aria-hidden="true">
@@ -16,7 +18,7 @@ export function AppHeader({
   return (
     <header className="foundation-app-header">
       <div className="foundation-app-header__brand">
-        <div className="foundation-brand-mark" aria-hidden="true">S</div>
+        <HomeLogo />
         <div>
           <div className="foundation-eyebrow">{eyebrow}</div>
           <h1>{title}</h1>

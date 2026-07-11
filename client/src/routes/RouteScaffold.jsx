@@ -78,6 +78,7 @@ import {
 } from './StepEightScreens';
 import { DisplayErrorStateScreen } from './StepNineScreens';
 import { displayNavigationItems } from './steplyRoutes';
+import { HomeLogo } from '../components/HomeLogo';
 
 const routeOrder = [
   '/display/connect',
@@ -426,7 +427,7 @@ function CameraRouteScreen({ route, dashboard }) {
   return (
     <div className="foundation-camera-shell">
       <header className="foundation-camera-header">
-        <div className="foundation-brand-mark" aria-hidden="true">S</div>
+        <HomeLogo />
         <div>
           <div className="foundation-eyebrow">{route.eyebrow}</div>
           <h1>{route.title}</h1>

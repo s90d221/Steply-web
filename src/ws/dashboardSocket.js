@@ -32,7 +32,10 @@ function shouldCleanupMobileSessionOnClose(socket, code, reason) {
   if (socket.keepSessionOnClose) return false;
 
   const reasonText = closeReasonText(reason);
-  return !(code === 1000 && reasonText === 'Android camera stopped');
+  // A transport close is not the same as ending the user's session. Mobile
+  // browsers and apps routinely reconnect when the screen or network changes.
+  // Personal data is cleared only by the explicit cleanup endpoint.
+  return code === 1000 && reasonText === 'mobile-session-ended';
 }
 
 function sendToRole(sessionId, role, payload) {

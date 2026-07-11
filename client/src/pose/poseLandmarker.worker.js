@@ -1991,6 +1991,21 @@ self.onmessage = async (event) => {
         analyzedAt: Date.now(),
       });
     }
+    if (message.type === 'CONFIRM_BALANCE_STAGE') {
+      const state = analyzer?.confirmCurrentStage?.();
+      if (state) {
+        postWorkerFrameResult({
+          source: 'analysis-frame',
+          sessionId: session?.id || messageSessionId(message) || null,
+          frameId: `balance-confirm-${Date.now()}`,
+          sequence: frameSequence,
+          state,
+          landmarks: [],
+          receivedAt: Date.now(),
+          analyzedAt: Date.now(),
+        });
+      }
+    }
     if (message.type === 'finish-session' || message.type === 'FINALIZE_SESSION') finishSession(message);
     if (message.type === 'reset-session' || message.type === 'RESET_SESSION' || message.type === 'CANCEL_SESSION') resetSession(message);
   } catch (error) {

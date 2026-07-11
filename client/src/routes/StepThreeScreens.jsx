@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { PoseOverlay } from '../components/pose/PoseOverlay';
 import {
   AppHeader,
   CameraPreview,
@@ -433,13 +434,14 @@ function cameraQualityScenario(dashboard, mode) {
 
   const readiness = dashboard?.poseAnalysis?.cameraReadiness;
   const phoneConnected = Boolean(dashboard?.remoteCameraFrame?.src || dashboard?.session?.profile);
-  const ready = Boolean(readiness?.isReady);
+  const fullBodyVisible = Boolean(readiness?.fullBodyVisible || readiness?.checks?.fullBodyVisible);
+  const ready = Boolean(dashboard?.remoteCameraFrame?.src && fullBodyVisible);
   return {
     ready,
     correction: ready ? 'Camera setup looks ready.' : readiness?.mainMessage || readiness?.message || 'Stand where your full body and both feet are visible.',
     rows: [
       { label: 'Phone Connected', status: phoneConnected ? 'ready' : 'checking' },
-      { label: 'Full Body Visible', status: readiness?.fullBodyVisible ? 'ready' : phoneConnected ? 'checking' : 'checking' },
+      { label: 'Full Body Visible', status: fullBodyVisible ? 'ready' : phoneConnected ? 'checking' : 'checking' },
       { label: 'Feet Visible', status: readiness?.feetVisible ? 'ready' : phoneConnected ? 'checking' : 'checking' },
       { label: 'Camera Angle', status: mode === 'chair' && !ready ? 'checking' : readiness?.checks?.correctDirection === false ? 'adjust' : ready ? 'ready' : 'checking' },
       { label: 'Lighting', status: readiness?.brightnessOk ? 'ready' : phoneConnected ? 'checking' : 'checking' },
@@ -463,16 +465,43 @@ function FramingOverlay({ mode }) {
 export function DisplayCameraSetupScreen({ dashboard }) {
   const mode = setupMode();
   const scenario = cameraQualityScenario(dashboard, mode);
+  const [autoContinueSeconds, setAutoContinueSeconds] = useState(null);
+  const autoStartDelaySeconds = mode === 'chair' ? 5 : 3;
+  const nextTestPath = mode === 'chair'
+    ? '/display/assessment/chair/live?state=ready&ready=1'
+    : '/display/assessment/balance/instruction';
   const title = mode === 'chair' ? 'Chair Stand Camera Setup' : 'Balance Test Camera Setup';
   const voiceScript = mode === 'chair'
     ? 'Place the phone about 2 meters away at a front-side angle. Keep the chair, knees, and both feet visible.'
     : 'Place the phone about 2 meters away at hip height. Face the camera and keep your full body visible.';
 
+  useEffect(() => {
+    if (!scenario.ready) {
+      setAutoContinueSeconds(null);
+      return undefined;
+    }
+
+    const startedAt = Date.now();
+    setAutoContinueSeconds(autoStartDelaySeconds);
+    const intervalId = window.setInterval(() => {
+      const elapsedSeconds = (Date.now() - startedAt) / 1000;
+      setAutoContinueSeconds(Math.max(1, autoStartDelaySeconds - Math.floor(elapsedSeconds)));
+    }, 100);
+    const timeoutId = window.setTimeout(() => {
+      goTo(nextTestPath);
+    }, autoStartDelaySeconds * 1000);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.clearTimeout(timeoutId);
+    };
+  }, [autoStartDelaySeconds, nextTestPath, scenario.ready]);
+
   return (
     <SessionShell
       eyebrow="Camera setup"
       title={title}
-      description="Use the live view to adjust the phone before calibration."
+      description="Keep your full body visible. The selected test starts automatically after the countdown."
       connection={<ConnectionIndicator status={queryValue('state') === 'lost' ? 'lost' : scenario.ready ? 'connected' : 'waiting'} label={scenario.ready ? 'Camera ready' : queryValue('state') === 'lost' ? 'Connection lost' : 'Camera check needed'} detail={scenario.correction} />}
       progress={<SessionProgress current={4} total={9} label="Session progress" />}
       className="step-three-camera-shell"
@@ -496,6 +525,12 @@ export function DisplayCameraSetupScreen({ dashboard }) {
             </button>
           </div>
           <CameraPreview frameSrc={dashboard?.remoteCameraFrame?.src} label={`${title} preview`} guide="Keep your body inside the guide">
+            <PoseOverlay
+              landmarks={dashboard?.poseAnalysis?.landmarks || []}
+              rawLandmarks={dashboard?.poseAnalysis?.rawLandmarks || []}
+              frameSize={dashboard?.poseAnalysis?.frameSize}
+              fit="cover"
+            />
             <FramingOverlay mode={mode} />
           </CameraPreview>
           <div className="step-three-setup-instructions">
@@ -514,7 +549,7 @@ export function DisplayCameraSetupScreen({ dashboard }) {
           </div>
           <div className={scenario.ready ? 'step-three-correction step-three-correction--ready' : 'step-three-correction'}>
             <StepIcon tone={scenario.ready ? 'success' : 'warning'}>{scenario.ready ? 'OK' : 'i'}</StepIcon>
-            <span>{scenario.correction}</span>
+            <span>{autoContinueSeconds ? `${scenario.correction} Continuing in ${autoContinueSeconds}...` : scenario.correction}</span>
           </div>
           <div className="step-three-note">
             <StepIcon>i</StepIcon>
@@ -526,7 +561,7 @@ export function DisplayCameraSetupScreen({ dashboard }) {
               primaryLabel="Continue"
               secondaryLabel="Check Camera"
               primaryDisabled={!scenario.ready}
-              onPrimary={() => goTo(`/display/session/calibration?test=${mode}`)}
+              onPrimary={() => goTo(nextTestPath)}
               onSecondary={() => goTo(`/display/session/camera-setup?test=${mode}&quality=ready`)}
             />
           </div>
@@ -582,8 +617,17 @@ export function DisplayCalibrationScreen({ dashboard }) {
   const test = setupMode();
   const position = queryValue('position', test === 'chair' ? 'standing' : 'standing');
   const isSeated = test === 'chair' && position === 'seated';
-  const state = calibrationState();
-  const count = Math.min(3, Math.max(1, Number(queryValue('count', '3')) || 3));
+  const fallbackState = calibrationState();
+  const poseAnalysis = dashboard?.poseAnalysis;
+  const hasPose = (poseAnalysis?.landmarks?.length || 0) > 0;
+  const fullBodyVisible = Boolean(
+    poseAnalysis?.cameraReadiness?.fullBodyVisible
+    || poseAnalysis?.cameraReadiness?.checks?.fullBodyVisible
+  );
+  const liveReady = test === 'balance'
+    ? Boolean(hasPose && fullBodyVisible)
+    : Boolean(hasPose && poseAnalysis?.cameraReadiness?.isReady);
+  const [count, setCount] = useState(3);
   const title = isSeated ? 'Sit Still for a Moment' : 'Stand Still for a Moment';
   const instruction = isSeated
     ? 'Sit in the middle of the chair with both feet flat on the floor.'
@@ -595,6 +639,36 @@ export function DisplayCalibrationScreen({ dashboard }) {
     ? '/display/assessment/chair/instruction'
     : '/display/assessment/balance/instruction';
   const voiceScript = `${instruction} Steply will count down from 3 while checking the camera view.`;
+
+  useEffect(() => {
+    if (!liveReady) {
+      setCount(3);
+      return undefined;
+    }
+    const timer = window.setInterval(() => {
+      setCount((current) => Math.max(0, current - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [liveReady]);
+
+  useEffect(() => {
+    if (!liveReady || count > 0) return;
+    const timer = window.setTimeout(() => goTo(nextPath), 350);
+    return () => window.clearTimeout(timer);
+  }, [count, liveReady, nextPath]);
+
+  const state = liveReady && count === 0
+    ? { type: 'success', title: 'Calibration Complete', message: 'Starting the challenge now.', canContinue: true }
+    : hasPose
+      ? {
+        type: liveReady ? 'checking' : 'failed',
+        title: liveReady ? 'Checking position' : 'Adjust your position',
+        message: liveReady
+          ? `Hold still for ${count} more second${count === 1 ? '' : 's'}.`
+          : poseAnalysis?.cameraReadiness?.mainMessage || poseAnalysis?.cameraReadiness?.warnings?.[0] || 'Keep your full body visible and stand still.',
+        canContinue: false,
+      }
+      : fallbackState;
 
   return (
     <SessionShell
@@ -608,6 +682,12 @@ export function DisplayCalibrationScreen({ dashboard }) {
       <main className="step-three-calibration">
         <section className="step-three-calibration-stage">
           <CameraPreview frameSrc={dashboard?.remoteCameraFrame?.src} label="Calibration preview" guide={isSeated ? 'Keep the chair and both feet visible' : 'Keep your full body visible'}>
+            <PoseOverlay
+              landmarks={poseAnalysis?.landmarks || []}
+              rawLandmarks={poseAnalysis?.rawLandmarks || []}
+              frameSize={poseAnalysis?.frameSize}
+              fit="cover"
+            />
             <FramingOverlay mode={test === 'chair' ? 'chair' : 'balance'} />
           </CameraPreview>
           <div className="step-three-countdown" aria-label={`Countdown ${count}`}>

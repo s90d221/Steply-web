@@ -43,6 +43,18 @@ import {
   withAssessmentMetadata,
 } from '../pose/assessmentResultMetadata';
 
+const ACTIVE_SESSION_STORAGE_KEY = 'steply.activeSessionBundle';
+
+function restoredSessionBundle() {
+  if (typeof window === 'undefined') return null;
+  try {
+    const value = window.sessionStorage.getItem(ACTIVE_SESSION_STORAGE_KEY);
+    return value ? JSON.parse(value) : null;
+  } catch (_) {
+    return null;
+  }
+}
+
 function normalizeFrameSource(frame, mimeType = 'image/jpeg') {
   if (typeof frame !== 'string') return '';
   const value = frame.trim();
@@ -592,7 +604,7 @@ export function buildFinalAnalysisPayload({
 
 export function useSteplyDashboard({ demoMode = false } = {}) {
   const [networkInfo, setNetworkInfo] = useState(null);
-  const [sessionBundle, setSessionBundle] = useState(null);
+  const [sessionBundle, setSessionBundle] = useState(restoredSessionBundle);
   const [selectedTest, setSelectedTest] = useState(initialSelectedTestFromUrl);
   const [liveResult, setLiveResult] = useState(null);
   const [finalResult, setFinalResult] = useState(null);
@@ -608,6 +620,7 @@ export function useSteplyDashboard({ demoMode = false } = {}) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const socketRef = useRef(null);
+  const restoredSocketWiredRef = useRef(false);
   const pendingFrameMetaRef = useRef(null);
   const frameObjectUrlRef = useRef(null);
 
@@ -757,8 +770,20 @@ export function useSteplyDashboard({ demoMode = false } = {}) {
     socket.binaryType = 'arraybuffer';
     socketRef.current = socket;
 
+    // Diagnostic: inspect from the browser console via `window.__steplyDiag`.
+    // Tells us whether the dashboard socket is actually receiving camera frames
+    // (binaryFrames / framesSet increasing) vs receiving nothing (session issue).
+    const diag = typeof window !== 'undefined'
+      ? (window.__steplyDiag = { wsUrl, opened: false, closed: false, msgTotal: 0, binaryFrames: 0, framesSet: 0, lastType: null, lastFrameAt: null })
+      : null;
+    socket.onopen = () => {
+      if (diag) diag.opened = true;
+      console.info('[steply-diag] dashboard WS open →', wsUrl);
+    };
+
     socket.onmessage = (event) => {
       try {
+        if (diag) diag.msgTotal += 1;
         if (event.data instanceof ArrayBuffer || event.data instanceof Blob) {
           const meta = pendingFrameMetaRef.current || {};
           pendingFrameMetaRef.current = null;
@@ -770,6 +795,12 @@ export function useSteplyDashboard({ demoMode = false } = {}) {
           frameObjectUrlRef.current = nextUrl;
           if (previousUrl) URL.revokeObjectURL(previousUrl);
 
+          if (diag) {
+            diag.binaryFrames += 1;
+            diag.framesSet += 1;
+            diag.lastFrameAt = Date.now();
+            if (diag.binaryFrames === 1) console.info('[steply-diag] first BINARY camera frame received:', blob.size, 'bytes');
+          }
           setRemoteCameraFrame({
             src: nextUrl,
             blob,
@@ -782,10 +813,21 @@ export function useSteplyDashboard({ demoMode = false } = {}) {
           });
           setRemoteCameraStatus('Receiving live phone camera stream');
           setActiveStep(activeStepForIncomingFrame);
+          if (socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({
+              type: 'remote-camera-frame-ack',
+              sequence: meta.sequence || null,
+              mobileSequence: meta.mobileSequence || null,
+              source: 'camera-preview',
+              receivedAt: meta.receivedAt || Date.now(),
+              analyzedAt: null,
+            }));
+          }
           return;
         }
 
         const message = JSON.parse(event.data);
+        if (diag) diag.lastType = message.type;
         if (message.type === 'session') {
           setSessionBundle((prev) => prev ? { ...prev, session: message.session } : prev);
           if (message.session?.selectedTest) setSelectedTest(message.session.selectedTest);
@@ -840,6 +882,16 @@ export function useSteplyDashboard({ demoMode = false } = {}) {
           });
           setRemoteCameraStatus('Receiving phone camera stream');
           setActiveStep(activeStepForIncomingFrame);
+          if (socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({
+              type: 'remote-camera-frame-ack',
+              sequence: message.sequence || message.receivedAt || null,
+              mobileSequence: message.mobileSequence || null,
+              source: 'camera-preview',
+              receivedAt: message.receivedAt || Date.now(),
+              analyzedAt: null,
+            }));
+          }
         }
         if (message.type === 'remote-camera-status') {
           setRemoteCameraStatus(message.message || 'Phone camera status changed.');
@@ -849,10 +901,27 @@ export function useSteplyDashboard({ demoMode = false } = {}) {
       }
     };
     socket.onclose = () => {
+      if (diag) diag.closed = true;
+      console.info('[steply-diag] dashboard WS closed. frames received =', diag?.binaryFrames ?? 0);
       poseAnalysis?.resetAnalysis?.('websocket_closed');
       setRemoteCameraStatus('Phone camera connection closed.');
     };
   }, [historyItems, poseAnalysis, refreshHistory, selectedTest, session]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (sessionBundle?.session?.id) {
+      window.sessionStorage.setItem(ACTIVE_SESSION_STORAGE_KEY, JSON.stringify(sessionBundle));
+    } else {
+      window.sessionStorage.removeItem(ACTIVE_SESSION_STORAGE_KEY);
+    }
+  }, [sessionBundle]);
+
+  useEffect(() => {
+    if (!sessionBundle?.session?.id || restoredSocketWiredRef.current) return;
+    restoredSocketWiredRef.current = true;
+    wireSocket(sessionBundle);
+  }, [sessionBundle, wireSocket]);
 
   const handleCreateSession = useCallback(async () => {
     setBusy(true);
@@ -869,6 +938,7 @@ export function useSteplyDashboard({ demoMode = false } = {}) {
       pendingFrameMetaRef.current = null;
       setRemoteCameraFrame(null);
       setRemoteCameraStatus('Scan the QR code to show the phone camera here.');
+      restoredSocketWiredRef.current = true;
       wireSocket(bundle);
     } catch (err) {
       setError(err.message);

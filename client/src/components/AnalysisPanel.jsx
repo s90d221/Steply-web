@@ -278,6 +278,7 @@ export function AnalysisPanel({
   onSelectTest,
   poseAnalysis,
   missionPreviewActive = false,
+  onAutoStart,
   onStop,
   onRetry,
 }) {
@@ -524,7 +525,8 @@ export function AnalysisPanel({
       setReadyHoldSeconds(nextReadyHoldSeconds);
       if (elapsed >= READY_HOLD_SECONDS && !autoStartRequestedRef.current) {
         autoStartRequestedRef.current = true;
-        startAnalysis?.();
+        if (onAutoStart) onAutoStart();
+        else startAnalysis?.();
       }
     };
 
@@ -538,6 +540,7 @@ export function AnalysisPanel({
     remoteCameraFrame?.src,
     isSetupImageMode,
     startAnalysis,
+    onAutoStart,
     displaySetupCheck.isReady,
     readinessDebug,
     footVisibility,

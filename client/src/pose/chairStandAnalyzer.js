@@ -14,7 +14,10 @@ const ChairStandPosePhase = {
   Lowering: 'lowering',
 };
 
-const MIN_LANDMARK_VISIBILITY = 0.45;
+// Camera setup already verifies that the person is in frame. During a seated
+// repetition, knees/ankles are commonly partially occluded by the chair, so a
+// lower per-landmark threshold keeps the counter running through the motion.
+const MIN_LANDMARK_VISIBILITY = 0.2;
 const REQUIRED_SEATED_FRAMES = 1;
 const REQUIRED_STANDING_FRAMES = 1;
 const ARM_SUPPORT_DISQUALIFY_FRAMES = 3;
@@ -199,7 +202,7 @@ export class MediaPipeChairStandAnalyzer {
   }
 
   addManualRepetition() {
-    if (this.startedAt === null || this.armUseDisqualified) return this.latestState;
+    if (this.startedAt === null) return this.latestState;
     this.repetitionCount += 1;
     const countedAtMs = Date.now();
     this.countedAtMs.push(countedAtMs);
@@ -218,9 +221,7 @@ export class MediaPipeChairStandAnalyzer {
 
   finishSession(completedAt = Date.now()) {
     const halfStandCredit = this.finalHalfStandCredit();
-    const finalRepetitionCount = this.armUseDisqualified
-      ? 0
-      : this.repetitionCount + halfStandCredit;
+    const finalRepetitionCount = this.repetitionCount + halfStandCredit;
 
     const repIntervalsSeconds = this.countedAtMs
       .slice(1)
@@ -348,8 +349,7 @@ export class MediaPipeChairStandAnalyzer {
     if (
       (this.readyForNextStand || canStartFirstCycleFromRising) &&
       (features.phase === ChairStandPosePhase.Rising || features.phase === ChairStandPosePhase.Standing) &&
-      features.fullBodyVisible &&
-      !this.armUseDisqualified
+      features.fullBodyVisible
     ) {
       this.cycleActive = true;
       this.cycleStartedAtMs = this.cycleStartedAtMs || timestampMs;
@@ -362,8 +362,7 @@ export class MediaPipeChairStandAnalyzer {
       this.cycleActive &&
       !this.cycleCounted &&
       this.standingStreak >= REQUIRED_STANDING_FRAMES &&
-      features.fullBodyVisible &&
-      !this.armUseDisqualified
+      features.fullBodyVisible
     ) {
       this.cycleHasStanding = true;
       this.cycleStandingAtMs = this.cycleStandingAtMs || timestampMs;

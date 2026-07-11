@@ -517,6 +517,10 @@ export default function App() {
           onSelectTest={dashboard.handleSelectTest}
           poseAnalysis={displayPoseAnalysis}
           missionPreviewActive={missionPreviewActive}
+          onAutoStart={() => {
+            dashboard.setActiveStep(activeStepFromScreen(UserScreenIds.Assessment));
+            displayPoseAnalysis?.startAnalysis?.();
+          }}
           onStop={() => {
             dashboard.poseAnalysis?.resetAnalysis?.('stop_button');
             setHasStartedTest(false);
@@ -551,9 +555,6 @@ export default function App() {
     return renderHomePanel();
   };
 
-  if (foundationRoute) {
-    return <FoundationRouteApp route={foundationRoute} dashboard={dashboard} />;
-  }
-
-  return <FoundationRouteApp route={matchSteplyRoute('/display/home')} dashboard={dashboard} />;
+  const activeRoute = foundationRoute || matchSteplyRoute('/display/home');
+  return <FoundationRouteApp route={activeRoute} dashboard={dashboard} />;
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AppHeader,
   CameraPreview,
@@ -7,6 +7,8 @@ import {
   PrimaryActionBar,
   SessionProgress,
 } from '../components/foundation/SteplyDesignSystem';
+import { PoseOverlay } from '../components/pose/PoseOverlay';
+import { UserScreenIds } from '../pipeline/ui/sessionFlow';
 
 function queryParams() {
   if (typeof window === 'undefined') return new URLSearchParams();
@@ -200,19 +202,12 @@ function instructionReadiness(dashboard) {
   const { analysisState } = chairStateFromDashboard(dashboard);
   const requestedReady = queryValue('ready', '');
   const requestedCalibrated = queryValue('calibrated', '');
-  const cameraReady = requestedReady === '1'
-    || Boolean(
-      dashboard?.poseAnalysis?.cameraReadiness?.isReady
-      || dashboard?.poseAnalysis?.cameraQuality?.ready
-      || analysisState?.isFullBodyVisible,
-    );
-  const seatedCalibrationReady = requestedCalibrated === '1'
-    || requestedReady === '1'
-    || Boolean(
-      analysisState?.seatedCalibrationReady
-      || dashboard?.poseAnalysis?.calibration?.chairSeatedReady
-      || dashboard?.poseAnalysis?.calibration?.seatedReady,
-    );
+  const cameraReady = requestedReady === '1' || Boolean(
+    dashboard?.poseAnalysis?.cameraReadiness?.fullBodyVisible
+    || dashboard?.poseAnalysis?.cameraReadiness?.checks?.fullBodyVisible
+    || analysisState?.isFullBodyVisible
+  );
+  const seatedCalibrationReady = true;
 
   return {
     ready: cameraReady && seatedCalibrationReady,
@@ -560,6 +555,13 @@ function ChairPreview({ dashboard, scenario }) {
   return (
     <section className="step-five-preview">
       <CameraPreview frameSrc={dashboard?.remoteCameraFrame?.src} label="Chair Stand Test preview" guide="Keep your chair and full body inside the guide">
+        <PoseOverlay
+          landmarks={dashboard?.poseAnalysis?.analysisLandmarks?.length
+            ? dashboard.poseAnalysis.analysisLandmarks
+            : dashboard?.poseAnalysis?.landmarks || []}
+          frameSize={dashboard?.poseAnalysis?.frameSize}
+          fit="cover"
+        />
         <div className="step-five-chair-overlay" aria-hidden="true">
           <span className="step-five-chair-overlay__body">Body guide</span>
           <span className="step-five-chair-overlay__chair">Chair area</span>
@@ -690,15 +692,38 @@ function ChairResultState(dashboard) {
 
 export function DisplayChairInstructionScreen({ dashboard }) {
   const [lastReplay, setLastReplay] = useState('');
+  const [autoStartSeconds, setAutoStartSeconds] = useState(null);
   const readiness = instructionReadiness(dashboard);
   const voiceScript = 'Sit in the middle of the chair with both feet flat on the floor. Cross your arms over your chest. Stand all the way up, then sit all the way down.';
+
+  useEffect(() => {
+    if (!readiness.cameraReady || !dashboard?.remoteCameraFrame?.src) {
+      setAutoStartSeconds(null);
+      return undefined;
+    }
+
+    const startedAt = Date.now();
+    setAutoStartSeconds(5);
+    const intervalId = window.setInterval(() => {
+      const remaining = Math.max(0, 5 - Math.floor((Date.now() - startedAt) / 1000));
+      setAutoStartSeconds(remaining);
+    }, 100);
+    const timeoutId = window.setTimeout(() => {
+      goTo('/display/assessment/chair/live?state=ready&ready=1');
+    }, 5000);
+
+    return () => {
+      window.clearInterval(intervalId);
+      window.clearTimeout(timeoutId);
+    };
+  }, [dashboard?.remoteCameraFrame?.src, readiness.cameraReady]);
 
   return (
     <SessionShell
       eyebrow="CDC STEADI"
       title="30-Second Chair Stand Test"
       description="Stand up and sit down with control for 30 seconds."
-      connection={<ConnectionIndicator status={readiness.ready ? 'connected' : 'waiting'} label={readiness.ready ? 'Starting position ready' : 'Setup needed'} detail={readiness.ready ? 'Camera and seated calibration are ready' : 'Complete camera setup and seated calibration first'} />}
+      connection={<ConnectionIndicator status={readiness.cameraReady ? 'connected' : 'waiting'} label={readiness.cameraReady ? 'Camera ready' : 'Camera setup needed'} detail={readiness.cameraReady ? `Test starts automatically in ${autoStartSeconds ?? 5} seconds.` : 'Keep your full body visible before starting.'} />}
       progress={<SessionProgress current={8} total={9} label="Session progress" />}
       className="step-five-instruction-shell"
     >
@@ -731,7 +756,7 @@ export function DisplayChairInstructionScreen({ dashboard }) {
 
         <section className="step-five-readiness-panel" aria-label="Starting position readiness">
           <StatusRow label="Camera position" status={readiness.cameraReady ? 'ready' : 'checking'} detail="Phone about 2 meters away at hip height." />
-          <StatusRow label="Seated calibration" status={readiness.seatedCalibrationReady ? 'ready' : 'checking'} detail="Sit centered with both feet flat." />
+          <StatusRow label="Starting position" status="ready" detail="Sit centered with both feet flat, then press Start." />
           <StatusRow label="Chair placement" status="ready" detail="Chair placed firmly against a wall." />
         </section>
 
@@ -742,13 +767,13 @@ export function DisplayChairInstructionScreen({ dashboard }) {
             onReplay={() => setLastReplay(voiceScript)}
           />
           <PrimaryActionBar
-            primaryLabel="Check Starting Position"
-            primaryDisabled={!readiness.ready}
-            onPrimary={() => goTo('/display/assessment/chair/live?state=ready&ready=1')}
+            primaryLabel={readiness.cameraReady ? `Starting in ${autoStartSeconds ?? 5}...` : 'Waiting for full body'}
+            primaryDisabled
+            onPrimary={() => {}}
           />
         </div>
-        {!readiness.ready ? (
-          <p className="step-five-disabled-note" role="status">Complete camera setup and seated calibration before starting.</p>
+        {!readiness.cameraReady ? (
+          <p className="step-five-disabled-note" role="status">Keep your full body visible before starting.</p>
         ) : null}
         {lastReplay ? <span className="step-five-sr-status" role="status">{lastReplay}</span> : null}
       </main>
@@ -758,8 +783,20 @@ export function DisplayChairInstructionScreen({ dashboard }) {
 
 export function DisplayChairLiveScreen({ dashboard }) {
   const [lastReplay, setLastReplay] = useState('');
+  const [flowRemaining, setFlowRemaining] = useState(30);
   const showBackWarning = useTimedBackGuard(true);
-  const scenario = useMemo(() => chairLiveScenario(dashboard), [dashboard]);
+  const measuredScenario = useMemo(() => chairLiveScenario(dashboard), [dashboard]);
+  const scenario = useMemo(() => ({
+    ...measuredScenario,
+    remaining: flowRemaining,
+    timerPaused: false,
+    armFirst: false,
+    armSecond: false,
+    calibrationFailed: false,
+    testComplete: flowRemaining <= 0,
+  }), [flowRemaining, measuredScenario]);
+  const latestRepsRef = useRef(scenario.reps);
+  latestRepsRef.current = scenario.reps;
   const qualityRows = useMemo(() => liveQualityRows(scenario, dashboard), [scenario, dashboard]);
   const connectionStatus = scenario.key === 'lost' ? 'lost' : hasPhoneConnection(dashboard) ? 'connected' : 'waiting';
   const pausePath = scenario.timerPaused
@@ -776,6 +813,57 @@ export function DisplayChairLiveScreen({ dashboard }) {
     || scenario.key === 'calibration_failed'
   );
   const resumeAllowed = scenario.key === 'paused';
+
+  useEffect(() => {
+    const startedAt = Date.now();
+    const intervalId = window.setInterval(() => {
+      const remaining = Math.max(0, 30 - Math.floor((Date.now() - startedAt) / 1000));
+      setFlowRemaining(remaining);
+      if (remaining > 0) return;
+      window.clearInterval(intervalId);
+      dashboard?.poseAnalysis?.finishAnalysis?.();
+      goTo(`/display/assessment/chair/result?reps=${latestRepsRef.current}`);
+    }, 100);
+    return () => window.clearInterval(intervalId);
+  }, []);
+
+  useEffect(() => {
+    dashboard?.setActiveStep?.(UserScreenIds.Assessment);
+    if (dashboard?.selectedTest !== 'chair_stand') {
+      dashboard?.handleSelectTest?.('chair_stand');
+      return;
+    }
+    const analysis = dashboard?.poseAnalysis;
+    if (
+      dashboard?.remoteCameraFrame?.src
+      && ((analysis?.analysisLandmarks?.length || analysis?.landmarks?.length || 0) > 0)
+      && !analysis?.isRunning
+      && ['IDLE', 'CANCELLED'].includes(analysis?.analysisSessionState)
+    ) {
+      analysis.startAnalysis?.();
+    }
+  }, [
+    dashboard?.selectedTest,
+    dashboard?.remoteCameraFrame?.src,
+    dashboard?.poseAnalysis?.analysisSessionState,
+    dashboard?.poseAnalysis?.cameraReadiness?.fullBodyVisible,
+    dashboard?.poseAnalysis?.cameraReadiness?.checks?.fullBodyVisible,
+    dashboard?.poseAnalysis?.landmarks?.length,
+    dashboard?.poseAnalysis?.analysisLandmarks?.length,
+  ]);
+
+  useEffect(() => {
+    const analysis = dashboard?.poseAnalysis;
+    const result = analysis?.analysisResult;
+    if (
+      analysis?.analysisSessionState !== 'COMPLETED'
+      || result?.status !== 'VALID'
+      || result?.resultType !== 'FINAL_RESULT'
+      || result?.testType !== 'chair_stand'
+      || result?.analysisSessionId !== analysis?.analysisSessionId
+    ) return;
+    goTo('/display/assessment/chair/result');
+  }, [dashboard?.poseAnalysis?.analysisResult, dashboard?.poseAnalysis?.analysisSessionState]);
 
   return (
     <SessionShell

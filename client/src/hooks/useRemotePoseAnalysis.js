@@ -403,6 +403,14 @@ export function useRemotePoseAnalysis({
     workerRef.current.postMessage({ type: 'MANUAL_REPETITION', sessionId: activeAnalysisSessionIdRef.current });
   }, []);
 
+  const confirmBalanceStage = useCallback(() => {
+    if (!workerRef.current || !activeAnalysisSessionIdRef.current) return;
+    workerRef.current.postMessage({
+      type: 'CONFIRM_BALANCE_STAGE',
+      sessionId: activeAnalysisSessionIdRef.current,
+    });
+  }, []);
+
   const previewSetupFrame = useCallback((frame) => {
     if (!workerRef.current || !frame) return;
     setError('');
@@ -527,7 +535,8 @@ export function useRemotePoseAnalysis({
     const tick = () => {
       const startedAt = startedAtRef.current;
       if (!startedAt || autoFinishedRef.current) return;
-      const paused = (
+      const progressMustIgnoreQualityGates = selectedTest === 'four_stage_balance' || selectedTest === 'chair_stand';
+      const paused = !progressMustIgnoreQualityGates && (
         analysisStateRef.current.trackingPaused
         || analysisStateRef.current.calibrationReady === false
         || ['PAUSED', 'INVALID', 'NOT_READY'].includes(qualityStatus?.state)
@@ -552,7 +561,7 @@ export function useRemotePoseAnalysis({
     tick();
     const intervalId = window.setInterval(tick, 500);
     return () => window.clearInterval(intervalId);
-  }, [durationSeconds, finishAnalysis, isRunning, qualityStatus?.state]);
+  }, [durationSeconds, finishAnalysis, isRunning, qualityStatus?.state, selectedTest]);
 
   return useMemo(() => ({
     workerStatus,
@@ -586,6 +595,7 @@ export function useRemotePoseAnalysis({
     resetAnalysis,
     probeDebug,
     addManualRepetition,
+    confirmBalanceStage,
     previewSetupFrame,
     durationSeconds,
   }), [
@@ -619,6 +629,7 @@ export function useRemotePoseAnalysis({
     resetAnalysis,
     probeDebug,
     addManualRepetition,
+    confirmBalanceStage,
     previewSetupFrame,
     durationSeconds,
   ]);

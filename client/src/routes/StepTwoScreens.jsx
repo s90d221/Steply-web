@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { HomeLogo } from '../components/HomeLogo';
 import {
   AdherenceChart,
   AppHeader,
@@ -138,7 +139,13 @@ export function DisplayConnectScreen({ dashboard }) {
   const state = connectionScenario(dashboard);
   const code = connectionCode(dashboard);
   const hasQrCode = Boolean(dashboard?.sessionBundle?.qrDataUrl);
-  const profileTarget = dashboard?.session?.profile ? '/display/home' : '/display/profile';
+  const requestedNext = queryValue('next', '');
+  const challengeTarget = requestedNext === '/display/session/camera-setup?test=balance' ? requestedNext : '';
+  const profileTarget = dashboard?.session?.profile
+    ? challengeTarget || '/display/home'
+    : challengeTarget
+      ? `/display/profile?next=${encodeURIComponent(challengeTarget)}`
+      : '/display/profile';
   const isConnected = state.status === 'connected';
 
   useEffect(() => {
@@ -226,6 +233,10 @@ const demoProfiles = [
 ];
 
 export function DisplayProfileScreen({ dashboard }) {
+  const requestedNext = queryValue('next', '');
+  const continueTarget = requestedNext === '/display/session/camera-setup?test=balance'
+    ? requestedNext
+    : '/display/home';
   const profileMode = queryValue('profiles', dashboard?.session?.profile ? 'one' : 'multiple');
   const profiles = profileMode === 'one'
     ? [dashboard?.session?.profile || demoProfiles[0]]
@@ -246,7 +257,7 @@ export function DisplayProfileScreen({ dashboard }) {
             <PrimaryActionBar
               primaryLabel="Go to Home"
               secondaryLabel="Add New Profile"
-              onPrimary={() => goTo('/display/home')}
+              onPrimary={() => goTo(continueTarget)}
               onSecondary={() => goTo('/display/onboarding')}
             />
           </SectionCard>
@@ -273,7 +284,7 @@ export function DisplayProfileScreen({ dashboard }) {
             </div>
             <InfoRow label="Last session" value={profile.lastSessionDate} />
             <InfoRow label="Next reassessment" value={profile.nextReassessmentDate} />
-            <button type="button" className="ds-button ds-button--primary" onClick={() => goTo('/display/home')}>
+            <button type="button" className="ds-button ds-button--primary" onClick={() => goTo(continueTarget)}>
               Continue as {profile.name}
             </button>
           </section>
@@ -442,10 +453,18 @@ export function DisplayHomeScreen({ dashboard }) {
             <InfoRow label="Estimated duration" value="18 minutes" />
             <InfoRow label="Included today" value="Balance test, chair stand, exercises" />
           </div>
+          <button
+            type="button"
+            className="ds-button ds-button--primary home-challenge-button"
+            onClick={() => goTo(hasPhoneConnection
+              ? '/display/session/camera-setup?test=balance'
+              : `/display/connect?next=${encodeURIComponent('/display/session/camera-setup?test=balance')}`)}
+          >
+            <span>{hasPhoneConnection ? 'Start Challenge' : 'Start Challenge'}</span>
+            <small>{hasPhoneConnection ? 'Begin today’s balance and chair stand checks' : 'Connect your phone camera first'}</small>
+          </button>
           <PrimaryActionBar
-            primaryLabel={hasPhoneConnection ? "Start Today's Session" : 'Connect Phone Camera'}
             secondaryLabel={hasPhoneConnection ? 'Split Into Two Short Sessions' : 'View Progress'}
-            onPrimary={() => goTo(hasPhoneConnection ? '/display/session/plan' : '/display/connect')}
             onSecondary={() => goTo(hasPhoneConnection ? '/display/session/plan?split=1' : '/display/progress')}
           />
         </section>
@@ -544,7 +563,7 @@ export function CameraConnectScreen() {
   return (
     <div className="foundation-camera-shell step-two-phone">
       <header className="foundation-camera-header">
-        <div className="foundation-brand-mark" aria-hidden="true">S</div>
+        <HomeLogo />
         <div>
           <div className="foundation-eyebrow">Phone camera</div>
           <h1>Connect to Display</h1>
@@ -585,7 +604,7 @@ export function CameraPermissionScreen() {
   return (
     <div className="foundation-camera-shell step-two-phone">
       <header className="foundation-camera-header">
-        <div className="foundation-brand-mark" aria-hidden="true">S</div>
+        <HomeLogo />
         <div>
           <div className="foundation-eyebrow">Permission</div>
           <h1>{denied ? 'Camera Access Is Required' : 'Allow Camera Access'}</h1>
@@ -616,7 +635,7 @@ export function CameraPreviewScreen({ dashboard }) {
   return (
     <div className="foundation-camera-shell step-two-phone step-two-phone--preview">
       <header className="foundation-camera-header">
-        <div className="foundation-brand-mark" aria-hidden="true">S</div>
+        <HomeLogo />
         <div>
           <div className="foundation-eyebrow">Preview</div>
           <h1>Set Up Camera View</h1>
@@ -644,7 +663,7 @@ export function CameraStreamingScreen() {
   return (
     <div className="foundation-camera-shell step-two-phone step-two-phone--streaming">
       <main className="step-two-streaming-panel">
-        <div className="foundation-brand-mark" aria-hidden="true">S</div>
+        <HomeLogo />
         <h1>Connected to Display</h1>
         <p>Current assessment: 4-Stage Balance Test</p>
         <InfoRow label="Battery level" value={state.batteryLevel} />

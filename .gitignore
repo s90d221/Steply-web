@@ -28,3 +28,6 @@ Thumbs.db
 # generated or local-only demo media
 /client/public/demo-videos/
 /public/demo-videos/
+
+# generated browser and validation output
+/artifacts/
